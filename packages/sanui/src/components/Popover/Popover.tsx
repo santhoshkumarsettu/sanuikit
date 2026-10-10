@@ -1,0 +1,3 @@
+import { useId, useState, type ReactNode } from 'react'
+export interface PopoverProps { trigger: ReactNode; children: ReactNode; placement?: 'top' | 'bottom' }
+export function Popover({ trigger, children, placement = 'bottom' }: PopoverProps) { const [open, setOpen] = useState(false); const id = useId(); return <span className="sanui-popover"><button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(value => !value)}>{trigger}</button>{open && <span id={id} className={`sanui-popover__content sanui-popover__content--${placement}`} role="dialog">{children}</span>}</span> }

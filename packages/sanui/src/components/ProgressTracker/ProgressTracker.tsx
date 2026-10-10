@@ -1,0 +1,4 @@
+import type { HTMLAttributes } from 'react'
+export interface ProgressTrackerStep { label: string; description?: string }
+export interface ProgressTrackerProps extends HTMLAttributes<HTMLOListElement> { steps: ProgressTrackerStep[]; currentStep: number }
+export function ProgressTracker({ steps, currentStep, className = '', ...props }: ProgressTrackerProps) { return <ol className={`sanui-progress-tracker ${className}`.trim()} {...props}>{steps.map((step, index) => <li key={`${step.label}-${index}`} className={index < currentStep ? 'is-complete' : index === currentStep ? 'is-current' : ''} aria-current={index === currentStep ? 'step' : undefined}><span className="sanui-progress-tracker__number">{index < currentStep ? '✓' : index + 1}</span><span><strong>{step.label}</strong>{step.description && <small>{step.description}</small>}</span></li>)}</ol> }

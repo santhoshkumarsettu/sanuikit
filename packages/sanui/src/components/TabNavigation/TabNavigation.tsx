@@ -1,0 +1,4 @@
+import type { ReactNode } from 'react'
+export interface TabNavigationItem { id: string; label: ReactNode; content: ReactNode; disabled?: boolean }
+export interface TabNavigationProps { tabs: TabNavigationItem[]; value: string; onChange: (value: string) => void }
+export function TabNavigation({ tabs, value, onChange }: TabNavigationProps) { const active = tabs.find(tab => tab.id === value); return <div className="sanui-tabs"><div role="tablist" className="sanui-tabs__list">{tabs.map(tab => <button key={tab.id} type="button" role="tab" id={`${tab.id}-tab`} aria-selected={tab.id === value} aria-controls={`${tab.id}-panel`} disabled={tab.disabled} onClick={() => onChange(tab.id)}>{tab.label}</button>)}</div>{active && <div role="tabpanel" id={`${active.id}-panel`} aria-labelledby={`${active.id}-tab`} className="sanui-tabs__panel">{active.content}</div>}</div> }

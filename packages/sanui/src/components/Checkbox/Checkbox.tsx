@@ -1,0 +1,3 @@
+import { forwardRef, useId, type InputHTMLAttributes } from 'react'
+export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> { label: string; hint?: string }
+export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox({ label, hint, id, ...props }, ref) { const generated = useId(); const inputId = id ?? generated; return <label className="sanui-choice" htmlFor={inputId}><input ref={ref} id={inputId} type="checkbox" {...props} /><span><span className="sanui-choice__label">{label}</span>{hint && <span className="sanui-choice__hint">{hint}</span>}</span></label> })

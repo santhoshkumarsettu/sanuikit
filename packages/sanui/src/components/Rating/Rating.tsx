@@ -1,0 +1,3 @@
+import { useId, type HTMLAttributes } from 'react'
+export interface RatingProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> { value: number; onChange?: (value: number) => void; max?: number; label?: string; readOnly?: boolean }
+export function Rating({ value, onChange, max = 5, label = 'Rating', readOnly = false, ...props }: RatingProps) { const id = useId(); return <div role="group" aria-label={label} className="sanui-rating" {...props}>{Array.from({ length: max }, (_, index) => <button key={index} id={`${id}-${index}`} type="button" aria-label={`${index + 1} of ${max} stars`} aria-pressed={index < value} disabled={readOnly} onClick={() => onChange?.(index + 1)}>★</button>)}</div> }

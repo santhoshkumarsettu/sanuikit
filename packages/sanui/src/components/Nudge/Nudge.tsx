@@ -1,0 +1,3 @@
+import { useState, type HTMLAttributes, type ReactNode } from 'react'
+export interface NudgeProps extends HTMLAttributes<HTMLElement> { title?: string; children: ReactNode; dismissible?: boolean }
+export function Nudge({ title, children, dismissible = true, className = '', ...props }: NudgeProps) { const [visible, setVisible] = useState(true); if (!visible) return null; return <aside className={`sanui-nudge ${className}`.trim()} {...props}>{title && <strong>{title}</strong>}<div>{children}</div>{dismissible && <button type="button" aria-label="Dismiss" onClick={() => setVisible(false)}>×</button>}</aside> }

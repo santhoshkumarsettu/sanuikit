@@ -1,0 +1,3 @@
+import { forwardRef, useId, type InputHTMLAttributes } from 'react'
+export interface SwitchProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> { label: string; hint?: string }
+export const Switch = forwardRef<HTMLInputElement, SwitchProps>(function Switch({ label, hint, id, ...props }, ref) { const generated = useId(); const inputId = id ?? generated; return <label className="sanui-switch" htmlFor={inputId}><input ref={ref} id={inputId} type="checkbox" role="switch" {...props} /><span className="sanui-switch__track" aria-hidden="true" /><span><span className="sanui-choice__label">{label}</span>{hint && <span className="sanui-choice__hint">{hint}</span>}</span></label> })
