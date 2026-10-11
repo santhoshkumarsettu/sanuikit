@@ -1,0 +1,10 @@
+{
+  "name": "@vstudio/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": { "build": "tsc -p tsconfig.build.json", "typecheck": "tsc -p tsconfig.build.json --noEmit" },
+  "dependencies": { "@vstudio/types": "workspace:*" },
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "^5.8.3" }
+}

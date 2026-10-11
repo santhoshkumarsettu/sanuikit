@@ -3,3 +3,9 @@ dist
 .vite
 *.tsbuildinfo
 .DS_Store
+.next
+.turbo
+coverage
+database/generated
+.env*
+!.env.example

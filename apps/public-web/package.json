@@ -1,0 +1,8 @@
+{
+  "name": "@vstudio/public-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "dev": "next dev --port 3001", "build": "next build", "start": "next start --port 3001", "lint": "eslint .", "typecheck": "tsc --noEmit" },
+  "dependencies": { "@tanstack/react-query": "^5.83.0", "@vstudio/api-client": "workspace:*", "@vstudio/map-engine": "workspace:*", "@vstudio/types": "workspace:*", "@vstudio/utils": "workspace:*", "sanui": "workspace:*", "next": "^15.4.0", "react": "^19.1.0", "react-dom": "^19.1.0" },
+  "devDependencies": { "@types/react": "^19.1.8", "@types/react-dom": "^19.1.7", "eslint": "^9.33.0", "eslint-config-next": "^15.4.0", "typescript": "^5.8.3" }
+}

@@ -1,29 +1,72 @@
-# SanUI
+# VStudio
 
-SanUI is a React component library developed alongside a Vite playground. The publishable package lives in `packages/sanui`; the app at the repository root previews the library through its workspace package name.
+VStudio is a multi-tenant property inventory platform. The admin workspace manages projects, layouts, units and bookings; the public workspace presents published interactive maps. Layout geometry is stored in layout coordinates and points to inventory records in PostgreSQL; SVG is only the visual layer.
 
-## Develop
+## Workspace
+
+```text
+apps/admin-web       Next.js administration and Map Studio
+apps/public-web      Public project map and iframe embed
+apps/api              Fastify modular-monolith REST API
+database              Prisma schema, migrations, seed, tenant context
+packages/ui           SanUI reusable React component library
+packages/map-engine   Reusable SVG map viewport and drawing engine
+packages/types        Shared domain types and status presentation
+packages/validation   Shared Zod validation rules
+packages/auth         Central role and permission rules
+packages/api-client   Typed browser API client
+packages/utils        Shared formatting and demo fixtures
+infrastructure        Local Docker services and AWS deployment notes
+```
+
+## Local development
+
+Requirements: Node.js 22.9+ (or Node.js 24+), pnpm 10, and Docker Compose.
 
 ```sh
-npm install
-npm run dev
+pnpm install
+cp .env.example .env
+docker compose -f infrastructure/docker/compose.yaml up -d
 ```
 
-The dev command builds the library first, then starts the playground. When changing library components, rerun the build or use the package build command in another terminal before refreshing the playground.
-
-## Build
+Create the `vstudio-assets` bucket in the MinIO console at <http://localhost:9001> (credentials are in `.env.example`). Then run:
 
 ```sh
-npm run build
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
 ```
 
-This builds the SanUI package, emits its TypeScript declarations, and builds the playground. To inspect the package contents before publishing, run `npm pack --workspace sanui --dry-run`.
+Admin: <http://localhost:3000> · public map: <http://localhost:3001/p/green-valley> · API health: <http://localhost:4000/health/ready>.
 
-## Package use
+`pnpm dev` builds workspace packages before starting both web apps and the API. The API reads the root `.env` file. Use the demo pages to explore the UI without signing in; authenticated API actions need the database and a registered account.
 
-```tsx
-import { Button, TextField } from 'sanui'
-import 'sanui/styles.css'
+## Engineering commands
+
+```sh
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm db:generate
+pnpm db:migrate
+pnpm db:seed
 ```
 
-The component catalog includes the requested foundations and controls, including `A11yAnnouncement`, `Alert`, `Banner`, `BottomSheet`, `Button`, `DataTable`, form controls, navigation, overlays, feedback components, `Wizard`, hooks, and utilities. Each component has its own folder under `packages/sanui/src/components/<ComponentName>/`; add its export to `packages/sanui/src/index.ts`.
+## Implemented product foundation
+
+- Tenant-aware PostgreSQL schema with row-level security migrations, organization memberships, projects, layouts, inventory, bookings, API keys and audit records.
+- Argon2id password authentication, expiring/revocable sessions, secure HTTP-only cookies, origin checks, rate limits and centralized role permissions.
+- Tenant-scoped project and inventory endpoints, controlled unit status transitions with optimistic concurrency, CSV preview/atomic commit/export, booking reserve/cancel and audit logging.
+- Presigned S3-compatible layout uploads, content-signature validation, image processing and Redis/BullMQ jobs.
+- Reusable SVG map engine with custom coordinates, pan/zoom, rectangle and polygon drawing, selection, polygon vertex editing and viewport controls.
+- Admin and public Next.js experiences, shared status legend, responsive public route and iframe route.
+
+The UI includes demo data so the interface can be reviewed before services are configured. The production API and database path is implemented separately; remaining product work includes completing organization-member invitation and administration screens, password-reset/email verification delivery, OAuth/SSO, a persistent editor save workflow, richer reporting/CRM integration, API-key management endpoints, automated end-to-end coverage, and production AWS secrets/deployment configuration. Do not expose the app to production traffic until those operational and product integrations are completed and reviewed.
+
+## Security and deployment notes
+
+- Use a dedicated PostgreSQL API role that is not a superuser or table owner. Tenant-owned tables force RLS; the API sets `app.organization_id` and `app.user_id` transaction-locally.
+- Replace all example secrets, provision private S3 buckets and least-privilege IAM, and configure an asset-delivery policy before deployment. Public project settings should determine which inventory fields are returned.
+- Configure TLS, managed PostgreSQL/Redis, backups, secret rotation, object lifecycle policies, email delivery, error tracking and OpenTelemetry export in the deployment environment.
+- The initial AWS deployment should use containers and managed services; Kubernetes is intentionally not part of local development.

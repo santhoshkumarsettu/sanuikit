@@ -1,24 +1,26 @@
 {
-  "name": "sanui-workspace",
+  "name": "vstudio-platform",
   "private": true,
-  "type": "module",
-  "workspaces": ["packages/sanui"],
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "npm run build:ui && vite",
-    "build:ui": "npm run build --workspace sanui",
-    "build": "npm run build:ui && tsc -b && vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "sanui": "*",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "predev": "pnpm build",
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "db:generate": "pnpm --filter @vstudio/database generate",
+    "db:migrate": "pnpm --filter @vstudio/database migrate",
+    "db:seed": "pnpm --filter @vstudio/database seed",
+    "db:studio": "pnpm --filter @vstudio/database exec prisma studio --schema schema.prisma",
+    "format": "prettier --write ."
   },
   "devDependencies": {
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.7",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "prettier": "^3.6.0",
+    "turbo": "^2.5.0",
     "typescript": "~5.8.3",
-    "vite": "^7.0.0"
+    "eslint": "^9.33.0",
+    "typescript-eslint": "^8.40.0"
   }
 }
