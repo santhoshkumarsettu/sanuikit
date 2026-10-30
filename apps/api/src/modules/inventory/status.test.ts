@@ -7,8 +7,9 @@ describe('unit status transitions', () => {
     expect(canTransitionUnitStatus('RESERVED', 'BOOKED')).toBe(true)
     expect(canTransitionUnitStatus('BOOKED', 'SOLD')).toBe(true)
   })
-  it('rejects invalid and terminal transitions', () => {
-    expect(canTransitionUnitStatus('AVAILABLE', 'SOLD')).toBe(false)
+  it('allows direct sales and rejects reviving a terminal status', () => {
+    expect(canTransitionUnitStatus('AVAILABLE', 'SOLD')).toBe(true)
+    expect(canTransitionUnitStatus('RESERVED', 'SOLD')).toBe(true)
     expect(canTransitionUnitStatus('SOLD', 'AVAILABLE')).toBe(false)
   })
   it('allows cancellation to restore a reserved unit', () => {

@@ -12,7 +12,7 @@
     "db:generate": "pnpm --filter @vstudio/database generate",
     "db:migrate": "pnpm --filter @vstudio/database migrate",
     "db:seed": "pnpm --filter @vstudio/database seed",
-    "db:studio": "pnpm --filter @vstudio/database exec prisma studio --schema schema.prisma",
+    "db:studio": "pnpm --filter @vstudio/database studio",
     "format": "prettier --write ."
   },
   "devDependencies": {

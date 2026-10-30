@@ -7,8 +7,9 @@ describe('unit lifecycle', () => {
     expect(canTransitionUnitStatus('RESERVED', 'BOOKED')).toBe(true)
     expect(canTransitionUnitStatus('BOOKED', 'SOLD')).toBe(true)
   })
-  it('rejects skipping reservations and reviving a sold unit', () => {
-    expect(canTransitionUnitStatus('AVAILABLE', 'SOLD')).toBe(false)
+  it('allows a direct sale and keeps sold units terminal', () => {
+    expect(canTransitionUnitStatus('AVAILABLE', 'SOLD')).toBe(true)
+    expect(canTransitionUnitStatus('RESERVED', 'SOLD')).toBe(true)
     expect(canTransitionUnitStatus('SOLD', 'AVAILABLE')).toBe(false)
   })
 })

@@ -1,8 +1,8 @@
 import type { UnitStatus } from './index.js'
 
 const transitions: Record<UnitStatus, ReadonlySet<UnitStatus>> = {
-  AVAILABLE: new Set(['RESERVED', 'BLOCKED', 'OFF_MARKET']),
-  RESERVED: new Set(['AVAILABLE', 'BOOKED', 'BLOCKED']),
+  AVAILABLE: new Set(['RESERVED', 'SOLD', 'BLOCKED', 'OFF_MARKET']),
+  RESERVED: new Set(['AVAILABLE', 'BOOKED', 'SOLD', 'BLOCKED']),
   BOOKED: new Set(['AVAILABLE', 'SOLD']),
   SOLD: new Set(),
   BLOCKED: new Set(['AVAILABLE', 'OFF_MARKET']),

@@ -1,0 +1,512 @@
+{
+  "info": {
+    "_postman_id": "93c74a5c-9d2b-467d-9f6d-77fe6a566371",
+    "name": "VStudio API - Local",
+    "description": "Requests for the HTTP API currently implemented in this repository. If changing the server, update both baseUrl and apiBase (defaults: http://localhost:4000 and http://localhost:4000/api/v1). Start the API and services with pnpm dev after Docker services are available. Run Auth > Register once for a fresh account, or set email/password to an existing account and run Auth > Login. Postman retains the vstudio_session cookie from login/registration; keep the Cookie Jar enabled. Mutating requests send Origin: http://localhost:3000 as required by the API. IDs are captured into collection variables by response test scripts. To publish a map, create a project, add a layout and unit, then run Public maps > Update settings, Publish, and Get public map. Do not run every request in sequence: create/update/delete/status examples may have preconditions and some are intentionally destructive. The API currently does not implement member invitation/administration or API-key management endpoints. Realtime is WebSocket: ws://localhost:4000/api/v1/events and requires the authenticated session cookie.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000" },
+    { "key": "apiBase", "value": "http://localhost:4000/api/v1" },
+    { "key": "email", "value": "" },
+    { "key": "password", "value": "ChangeMe_123456" },
+    { "key": "organizationName", "value": "Postman Demo Organization" },
+    { "key": "organizationSlug", "value": "" },
+    { "key": "organizationId", "value": "" },
+    { "key": "projectId", "value": "" },
+    { "key": "projectSlug", "value": "" },
+    { "key": "layoutId", "value": "" },
+    { "key": "unitId", "value": "" },
+    { "key": "bookingId", "value": "" },
+    { "key": "uploadUrl", "value": "" },
+    { "key": "uploadContentType", "value": "image/png" },
+    { "key": "uploadFileName", "value": "layout.png" },
+    { "key": "uploadSize", "value": "1024" },
+    { "key": "uploadWidth", "value": "1000" },
+    { "key": "uploadHeight", "value": "800" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health/live" }
+        },
+        {
+          "name": "Readiness (database)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health/ready" }
+        }
+      ]
+    },
+    {
+      "name": "Auth and organization",
+      "item": [
+        {
+          "name": "Register (new account and workspace)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const stamp = Date.now().toString();",
+                  "if (!pm.collectionVariables.get('email')) pm.collectionVariables.set('email', `postman-${stamp}@example.com`);",
+                  "if (!pm.collectionVariables.get('organizationSlug')) pm.collectionVariables.set('organizationSlug', `postman-${stamp}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Registration succeeds', () => pm.response.to.have.status(201));",
+                  "const data = pm.response.json();",
+                  "if (data.organization?.id) pm.collectionVariables.set('organizationId', data.organization.id);",
+                  "if (data.organization?.slug) pm.collectionVariables.set('organizationSlug', data.organization.slug);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationName\": \"{{organizationName}}\",\n  \"organizationSlug\": \"{{organizationSlug}}\",\n  \"name\": \"Postman User\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/auth/register"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeds', () => pm.response.to.have.status(200));",
+                  "const data = pm.response.json();",
+                  "if (data.organization?.id) pm.collectionVariables.set('organizationId', data.organization.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/auth/login"
+          }
+        },
+        {
+          "name": "Current user, organization, and role",
+          "request": { "method": "GET", "url": "{{apiBase}}/auth/me" }
+        },
+        {
+          "name": "Update organization name and slug",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{organizationName}}\",\n  \"slug\": \"{{organizationSlug}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/auth/organization"
+          }
+        },
+        {
+          "name": "Switch organization",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/auth/switch-organization"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects and public maps",
+      "item": [
+        {
+          "name": "List projects",
+          "request": { "method": "GET", "url": "{{apiBase}}/projects" }
+        },
+        {
+          "name": "Create project",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('projectSlug', `postman-${Date.now()}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Project created', () => pm.response.to.have.status(201));",
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('projectId', data.id);",
+                  "if (data.slug) pm.collectionVariables.set('projectSlug', data.slug);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Project\",\n  \"slug\": \"{{projectSlug}}\",\n  \"projectType\": \"PLOT_LAYOUT\",\n  \"description\": \"Created from the VStudio Postman collection\",\n  \"location\": \"Local\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects"
+          }
+        },
+        {
+          "name": "Get project (slug or ID)",
+          "request": { "method": "GET", "url": "{{apiBase}}/projects/{{projectSlug}}" }
+        },
+        {
+          "name": "Update project",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Project Updated\",\n  \"description\": \"Updated from Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects/{{projectId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Layouts",
+      "item": [
+        {
+          "name": "List project layouts",
+          "request": { "method": "GET", "url": "{{apiBase}}/projects/{{projectId}}/layouts" }
+        },
+        {
+          "name": "Create layout (existing image key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Layout created', () => pm.response.to.have.status(201));",
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('layoutId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Master Plan\",\n  \"width\": 1000,\n  \"height\": 800,\n  \"imageKey\": \"{{organizationId}}/postman/master-plan.png\",\n  \"type\": \"SITE_PLAN\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects/{{projectId}}/layouts"
+          }
+        },
+        {
+          "name": "Create layout upload intent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Upload intent created', () => pm.response.to.have.status(201));",
+                  "const data = pm.response.json();",
+                  "if (data.layoutId) pm.collectionVariables.set('layoutId', data.layoutId);",
+                  "if (data.uploadUrl) pm.collectionVariables.set('uploadUrl', data.uploadUrl);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Uploaded Master Plan\",\n  \"fileName\": \"{{uploadFileName}}\",\n  \"contentType\": \"{{uploadContentType}}\",\n  \"size\": {{uploadSize}},\n  \"width\": {{uploadWidth}},\n  \"height\": {{uploadHeight}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects/{{projectId}}/layouts/upload-intents"
+          }
+        },
+        {
+          "name": "Upload image to signed URL (select binary file)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "{{uploadContentType}}" }],
+            "body": { "mode": "file", "file": { "src": "" } },
+            "url": "{{uploadUrl}}",
+            "description": "After creating an upload intent, select the exact local PNG/JPEG/WebP file in Body > binary. Set uploadSize, uploadWidth, uploadHeight, uploadFileName, and uploadContentType to match it. This signed URL expires after 5 minutes."
+          }
+        },
+        {
+          "name": "Confirm image upload",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Origin", "value": "http://localhost:3000" }],
+            "url": "{{apiBase}}/layouts/{{layoutId}}/confirm-upload"
+          }
+        },
+        {
+          "name": "Get layout asset URL",
+          "request": { "method": "GET", "url": "{{apiBase}}/layouts/{{layoutId}}/asset-url" }
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "List/filter units",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{apiBase}}/projects/{{projectId}}/units?status=AVAILABLE&sort=unitNumber&order=asc&limit=500",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "{{projectId}}", "units"],
+              "query": [
+                { "key": "status", "value": "AVAILABLE", "description": "Comma-separated statuses, e.g. AVAILABLE,RESERVED" },
+                { "key": "sort", "value": "unitNumber", "description": "unitNumber, price, area, or updatedAt" },
+                { "key": "order", "value": "asc" },
+                { "key": "limit", "value": "500" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "type", "value": "", "disabled": true },
+                { "key": "minPrice", "value": "", "disabled": true },
+                { "key": "maxPrice", "value": "", "disabled": true },
+                { "key": "minArea", "value": "", "disabled": true },
+                { "key": "maxArea", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create unit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unit created', () => pm.response.to.have.status(201));",
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('unitId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"layoutId\": \"{{layoutId}}\",\n  \"unitNumber\": \"P-101\",\n  \"unitType\": \"PLOT\",\n  \"area\": 1500,\n  \"areaUnit\": \"SQFT\",\n  \"price\": 3500000,\n  \"currency\": \"INR\",\n  \"geometry\": {\n    \"kind\": \"RECTANGLE\",\n    \"x\": 10,\n    \"y\": 10,\n    \"width\": 100,\n    \"height\": 80\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects/{{projectId}}/units"
+          }
+        },
+        {
+          "name": "Update unit geometry (optimistic version)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedVersion\": 1,\n  \"geometry\": {\n    \"kind\": \"RECTANGLE\",\n    \"x\": 20,\n    \"y\": 20,\n    \"width\": 100,\n    \"height\": 80\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/units/{{unitId}}/geometry"
+          }
+        },
+        {
+          "name": "Update unit status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"AVAILABLE\",\n  \"reason\": \"Status update from Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/units/{{unitId}}/status"
+          }
+        },
+        {
+          "name": "Bulk update unit status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"unitIds\": [\"{{unitId}}\"],\n  \"status\": \"AVAILABLE\",\n  \"reason\": \"Bulk update from Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/units/bulk/status"
+          }
+        },
+        {
+          "name": "Download CSV import template",
+          "request": { "method": "GET", "url": "{{apiBase}}/projects/{{projectId}}/units/import/template" }
+        },
+        {
+          "name": "Preview CSV import",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"csv\": \"unit_number,unit_type,area,price,status\\nP-101,PLOT,1500,3500000,AVAILABLE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects/{{projectId}}/units/import/preview"
+          }
+        },
+        {
+          "name": "Commit CSV import",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"csv\": \"unit_number,unit_type,area,price,status\\nP-101,PLOT,1500,3500000,AVAILABLE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects/{{projectId}}/units/import/commit"
+          }
+        },
+        {
+          "name": "Export project inventory CSV",
+          "request": { "method": "GET", "url": "{{apiBase}}/projects/{{projectId}}/units/export" }
+        },
+        {
+          "name": "Delete unit (run manually; blocked if it has booking history)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Origin", "value": "http://localhost:3000" }],
+            "url": "{{apiBase}}/units/{{unitId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "List project bookings",
+          "request": { "method": "GET", "url": "{{apiBase}}/projects/{{projectId}}/bookings" }
+        },
+        {
+          "name": "Create booking (reserves available unit)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Booking created', () => pm.response.to.have.status(201));",
+                  "const data = pm.response.json();",
+                  "if (data.id) pm.collectionVariables.set('bookingId', data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"unitId\": \"{{unitId}}\",\n  \"customerName\": \"Postman Customer\",\n  \"customerEmail\": \"customer@example.com\",\n  \"customerPhone\": \"+15555550100\",\n  \"notes\": \"Test booking created with Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/bookings"
+          }
+        },
+        {
+          "name": "Cancel booking",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Origin", "value": "http://localhost:3000" }],
+            "url": "{{apiBase}}/bookings/{{bookingId}}/cancel"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public maps and cleanup",
+      "item": [
+        {
+          "name": "Update public map settings",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "Origin", "value": "http://localhost:3000" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"config\": {\n    \"showPrice\": true,\n    \"showArea\": true,\n    \"showUnitType\": true,\n    \"allowEnquiries\": true,\n    \"showSoldUnits\": false\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{apiBase}}/projects/{{projectId}}/public-settings"
+          }
+        },
+        {
+          "name": "Publish project (requires at least one layout and unit)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Origin", "value": "http://localhost:3000" }],
+            "url": "{{apiBase}}/projects/{{projectId}}/publish"
+          }
+        },
+        {
+          "name": "Get public project map (no login required)",
+          "request": { "method": "GET", "url": "{{apiBase}}/public/projects/{{projectSlug}}" }
+        },
+        {
+          "name": "Archive project (destructive; run manually)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Origin", "value": "http://localhost:3000" }],
+            "url": "{{apiBase}}/projects/{{projectId}}/archive"
+          }
+        },
+        {
+          "name": "Logout (ends the current Postman session)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Origin", "value": "http://localhost:3000" }],
+            "url": "{{apiBase}}/auth/logout"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -39,6 +39,7 @@ export default function ProjectDetailsPage() {
   const layoutCount = projectQuery.data?.layouts.length ?? 0;
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(false);
+  const [availabilityPending, setAvailabilityPending] = useState(false);
   const [editValues, setEditValues] = useState({ name: "", slug: "", location: "", description: "" });
   const editProject = useMutation({
     mutationFn: () => vstudioApi.updateProject(project.id, editValues),
@@ -65,6 +66,30 @@ export default function ProjectDetailsPage() {
       );
     }
   }
+  async function toggleAvailability() {
+    if (!projectQuery.data || availabilityPending) return;
+    const current = projectQuery.data;
+    if (current.status !== "ARCHIVED" && !window.confirm(`Deactivate “${current.name}”? Its public map will be taken offline. You can restore the project later.`)) return;
+    setAvailabilityPending(true);
+    try {
+      if (current.status === "ARCHIVED") {
+        await vstudioApi.updateProject(current.id, { status: "DRAFT" });
+        setMessage("Project restored as a draft. Publish it again when ready.");
+      } else {
+        await vstudioApi.archiveProject(current.id);
+        setMessage("Project deactivated and its public map taken offline. You can restore it from Projects.");
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["project", slug] }),
+      ]);
+      await projectQuery.refetch();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Project availability could not be changed.");
+    } finally {
+      setAvailabilityPending(false);
+    }
+  }
   const publicUrl = `${process.env.NEXT_PUBLIC_PUBLIC_URL ?? "http://localhost:3001"}/p/${encodeURIComponent(project.slug)}`;
   const studioUrl = projectQuery.data
     ? `/studio?project=${encodeURIComponent(project.id)}`
@@ -85,18 +110,19 @@ export default function ProjectDetailsPage() {
         </div>
         <div className="title-actions">
           {projectQuery.data && <Button variant="secondary" onClick={() => { setEditValues({ name: project.name, slug: project.slug, location: project.location ?? "", description: project.description ?? "" }); setEditing(value => !value); }}>Edit project</Button>}
-          {projectQuery.data?.status !== "ACTIVE" && projectQuery.data && (
+          {projectQuery.data && <Button variant="secondary" disabled={availabilityPending} onClick={() => void toggleAvailability()}>{availabilityPending ? "Saving…" : projectQuery.data.status === "ARCHIVED" ? "Restore project" : "Deactivate project"}</Button>}
+          {projectQuery.data?.status !== "ACTIVE" && projectQuery.data?.status !== "ARCHIVED" && (
             <Button variant="secondary" onClick={() => void publish()}>
               Publish map
             </Button>
           )}
-          <Link
+          {project.status === "ACTIVE" && project.publicEnabled && <Link
             className="sanui-button sanui-button--secondary sanui-button--md"
             href={publicUrl}
             target="_blank"
           >
             View public map ↗
-          </Link>
+          </Link>}
           <Link
             className="sanui-button sanui-button--primary sanui-button--md"
             href={studioUrl}

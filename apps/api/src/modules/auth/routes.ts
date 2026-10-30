@@ -7,6 +7,7 @@ import { withTenant } from '@vstudio/database/tenant'
 import { hashToken } from '../../lib/hash.js'
 
 const registerSchema = z.object({ organizationName: z.string().trim().min(2).max(160), organizationSlug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100), name: z.string().trim().min(2).max(160), email: z.string().trim().email().max(320).transform(value => value.toLowerCase()), password: z.string().min(12).max(128) })
+const organizationUpdateSchema = z.object({ name: z.string().trim().min(2).max(160).optional(), slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(100).optional() }).refine(data => data.name !== undefined || data.slug !== undefined, { message: 'Provide at least one organization field to update.', path: ['name'] })
 const loginSchema = z.object({ email: z.string().email().max(320).transform(value => value.toLowerCase()), password: z.string().min(1).max(128), organizationId: z.string().uuid().optional() })
 const switchSchema = z.object({ organizationId: z.string().uuid() })
 const SESSION_HOURS = 12
@@ -72,6 +73,31 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     const membership = await withTenant(context, tx => tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: context.organizationId, userId: context.userId } }, include: { user: true, organization: true } }))
     if (!membership) return null
     return { user: { id: membership.user.id, name: membership.user.name, email: membership.user.email, avatarUrl: membership.user.avatarUrl }, organization: { id: membership.organization.id, name: membership.organization.name, slug: membership.organization.slug }, role: membership.role }
+  })
+
+  app.patch('/auth/organization', { preHandler: [app.authenticate] }, async (request, reply) => {
+    const context = request.auth!
+    const parsed = organizationUpdateSchema.safeParse(request.body)
+    if (!parsed.success) return reply.code(400).send({ code: 'VALIDATION_ERROR', message: parsed.error.issues[0]?.message ?? 'Organization details are invalid.' })
+
+    const update = parsed.data
+    if (update.slug) {
+      const duplicate = await prisma.organization.findUnique({ where: { slug: update.slug } })
+      if (duplicate && duplicate.id !== context.organizationId) return reply.code(409).send({ code: 'ALREADY_EXISTS', message: 'That workspace slug is already in use.' })
+    }
+    try {
+      const organization = await withTenant(context, tx => tx.organization.update({
+        where: { id: context.organizationId },
+        data: {
+          ...(update.name ? { name: update.name } : {}),
+          ...(update.slug ? { slug: update.slug } : {}),
+        },
+      }))
+      return { organization: { id: organization.id, name: organization.name, slug: organization.slug } }
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') return reply.code(409).send({ code: 'ALREADY_EXISTS', message: 'An organization with those details already exists.' })
+      throw error
+    }
   })
 
   app.post('/auth/switch-organization', { preHandler: [app.authenticate] }, async (request, reply) => {

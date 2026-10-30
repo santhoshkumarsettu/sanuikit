@@ -6,6 +6,7 @@ export type ProjectType = 'PLOT_LAYOUT' | 'APARTMENT' | 'VILLA' | 'COMMERCIAL' |
 export type ProjectStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
 export type UnitType = 'PLOT' | 'APARTMENT' | 'VILLA' | 'OFFICE' | 'SHOP' | 'PARKING' | 'ROOM' | 'WAREHOUSE' | 'CUSTOM'
 export type UnitStatus = 'AVAILABLE' | 'RESERVED' | 'BOOKED' | 'SOLD' | 'BLOCKED' | 'OFF_MARKET'
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'COMPLETED'
 
 export interface Point { x: number; y: number }
 export type UnitGeometry =
