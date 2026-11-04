@@ -38,6 +38,7 @@ function formatBookingStatus(status: BookingStatus) {
 export default function BookingsPage() {
   const queryClient = useQueryClient()
   const [requestedProjectId, setRequestedProjectId] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('project') ?? '')
+  const [requestedUnitId] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('unit') ?? '')
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<'ALL' | BookingStatus>('ALL')
   const [createOpen, setCreateOpen] = useState(false)
@@ -55,6 +56,7 @@ export default function BookingsPage() {
   const meQuery = useQuery({ queryKey: ['me'], queryFn: () => vstudioApi.me(), retry: false })
   const role = meQuery.data?.role as OrganizationRole | undefined
   const canCreate = role ? hasPermission(role, 'CREATE_BOOKING') : false
+  const canConfirm = canCreate
   const canCancel = role ? hasPermission(role, 'CANCEL_BOOKING') : false
   const filtered = useMemo(() => bookings.filter(booking =>
     (status === 'ALL' || booking.status === status) &&
@@ -70,6 +72,11 @@ export default function BookingsPage() {
     onSuccess: async () => { setMessage('Booking cancelled and unit availability updated.'); await Promise.all([queryClient.invalidateQueries({ queryKey: ['bookings', projectId] }), queryClient.invalidateQueries({ queryKey: ['units', projectId] })]) },
     onError: error => setMessage(error instanceof Error ? error.message : 'The booking could not be cancelled.'),
   })
+  const confirmMutation = useMutation({
+    mutationFn: (bookingId: string) => vstudioApi.confirmBooking(bookingId),
+    onSuccess: async () => { setMessage('Booking confirmed. The unit is now marked as booked.'); await Promise.all([queryClient.invalidateQueries({ queryKey: ['bookings', projectId] }), queryClient.invalidateQueries({ queryKey: ['units', projectId] })]) },
+    onError: async error => { setMessage(error instanceof Error ? error.message : 'The booking could not be confirmed.'); await Promise.all([queryClient.invalidateQueries({ queryKey: ['bookings', projectId] }), queryClient.invalidateQueries({ queryKey: ['units', projectId] })]) },
+  })
 
   function cancelBooking(booking: ApiBooking) {
     if (!window.confirm(`Cancel the booking for ${booking.unit.unitNumber} (${booking.customerName})? The unit will become available again.`)) return false
@@ -77,8 +84,14 @@ export default function BookingsPage() {
     return true
   }
 
+  function confirmBooking(booking: ApiBooking) {
+    if (!window.confirm(`Confirm the booking for ${booking.unit.unitNumber} (${booking.customerName}) and mark the unit as booked?`)) return false
+    confirmMutation.mutate(booking.id)
+    return true
+  }
+
   function openCreate() {
-    form.reset({ unitId: '', customerName: '', customerEmail: '', customerPhone: '', notes: '' })
+    form.reset({ unitId: availableUnits.some(unit => unit.id === requestedUnitId) ? requestedUnitId : '', customerName: '', customerEmail: '', customerPhone: '', notes: '' })
     createMutation.reset()
     setCreateOpen(true)
   }
@@ -124,7 +137,7 @@ export default function BookingsPage() {
                 <td><Badge tone={statusTone(booking.status)}>{formatBookingStatus(booking.status)}</Badge></td>
                 <td>{formatCurrency(booking.unit.price, booking.unit.currency)}</td>
                 <td>{new Date(booking.createdAt).toLocaleDateString()}</td>
-                <td><div className="bookings-row-actions"><button type="button" className="text-button" onClick={() => setSelectedBooking(booking)}>Details</button>{canCancel && (booking.status === 'PENDING' || booking.status === 'CONFIRMED') && <button type="button" className="text-button bookings-cancel-action" disabled={cancelMutation.isPending} onClick={() => cancelBooking(booking)}>Cancel</button>}</div></td>
+                <td><div className="bookings-row-actions"><button type="button" className="text-button" onClick={() => setSelectedBooking(booking)}>Details</button>{canConfirm && booking.status === 'PENDING' && <button type="button" className="text-button" disabled={confirmMutation.isPending} onClick={() => confirmBooking(booking)}>Confirm</button>}{canCancel && (booking.status === 'PENDING' || booking.status === 'CONFIRMED') && <button type="button" className="text-button bookings-cancel-action" disabled={cancelMutation.isPending} onClick={() => cancelBooking(booking)}>Cancel</button>}</div></td>
               </tr>)}</tbody>
             </table>
             {filtered.length === 0 && <div className="empty-state">{bookings.length ? 'No bookings match your search and status filter.' : <>No bookings for {project?.name ?? 'this project'} yet.{canCreate && availableUnits.length > 0 && <> <button className="text-button" type="button" onClick={openCreate}>Create the first booking →</button></>}</>}</div>}
@@ -135,7 +148,7 @@ export default function BookingsPage() {
 
     <Modal open={createOpen} title="Create booking" onClose={() => setCreateOpen(false)} footer={<><Button variant="secondary" onClick={() => setCreateOpen(false)}>Cancel</Button><Button disabled={createMutation.isPending || availableUnits.length === 0} onClick={form.handleSubmit(values => createMutation.mutate(values))}>{createMutation.isPending ? 'Creating…' : 'Create booking'}</Button></>}>
       <form className="booking-form" onSubmit={form.handleSubmit(values => createMutation.mutate(values))}>
-        <p className="booking-form__context">{project?.name} · A successful booking reserves the selected unit for 48 hours.</p>
+        <p className="booking-form__context">{project?.name} · Creating the booking places a 48-hour hold. Confirm the booking afterward to change the unit from Reserved to Booked.</p>
         <div className="form-field"><label htmlFor="booking-unit">Available unit</label><select id="booking-unit" {...form.register('unitId')} disabled={unitsQuery.isLoading || availableUnits.length === 0}><option value="">{unitsQuery.isLoading ? 'Loading units…' : availableUnits.length ? 'Choose a unit' : 'No available units'}</option>{availableUnits.map(unit => <option key={unit.id} value={unit.id}>{unit.unitNumber} · {unit.unitType.replaceAll('_', ' ')} · {formatCurrency(unit.price, unit.currency)}</option>)}</select>{form.formState.errors.unitId && <small className="form-error">{form.formState.errors.unitId.message}</small>}{unitsQuery.isError && <small className="form-error">Couldn’t load units for this project.</small>}</div>
         <div className="form-field"><label htmlFor="booking-customer-name">Customer name</label><input id="booking-customer-name" autoComplete="name" placeholder="Customer name" {...form.register('customerName')} />{form.formState.errors.customerName && <small className="form-error">{form.formState.errors.customerName.message}</small>}</div>
         <div className="form-grid"><div className="form-field"><label htmlFor="booking-customer-email">Email</label><input id="booking-customer-email" type="email" autoComplete="email" placeholder="name@example.com" {...form.register('customerEmail')} />{form.formState.errors.customerEmail && <small className="form-error">{form.formState.errors.customerEmail.message}</small>}</div><div className="form-field"><label htmlFor="booking-customer-phone">Phone</label><input id="booking-customer-phone" type="tel" autoComplete="tel" placeholder="Phone number" {...form.register('customerPhone')} /></div></div>
@@ -144,7 +157,7 @@ export default function BookingsPage() {
       </form>
     </Modal>
 
-    <Modal open={Boolean(selectedBooking)} title="Booking details" onClose={() => setSelectedBooking(undefined)} footer={<><Button variant="secondary" onClick={() => setSelectedBooking(undefined)}>Close</Button>{selectedBooking && canCancel && (selectedBooking.status === 'PENDING' || selectedBooking.status === 'CONFIRMED') && <Button variant="secondary" disabled={cancelMutation.isPending} onClick={() => { if (cancelBooking(selectedBooking)) setSelectedBooking(undefined) }}>Cancel booking</Button>}</>}>
+    <Modal open={Boolean(selectedBooking)} title="Booking details" onClose={() => setSelectedBooking(undefined)} footer={<><Button variant="secondary" onClick={() => setSelectedBooking(undefined)}>Close</Button>{selectedBooking && canConfirm && selectedBooking.status === 'PENDING' && <Button disabled={confirmMutation.isPending} onClick={() => { if (confirmBooking(selectedBooking)) setSelectedBooking(undefined) }}>{confirmMutation.isPending ? 'Confirming…' : 'Confirm & mark booked'}</Button>}{selectedBooking && canCancel && (selectedBooking.status === 'PENDING' || selectedBooking.status === 'CONFIRMED') && <Button variant="secondary" disabled={cancelMutation.isPending} onClick={() => { if (cancelBooking(selectedBooking)) setSelectedBooking(undefined) }}>Cancel booking</Button>}</>}>
       {selectedBooking && <div className="booking-details"><div><small>Unit</small><strong>{selectedBooking.unit.unitNumber} · {selectedBooking.unit.unitType.replaceAll('_', ' ')}</strong></div><div><small>Customer</small><strong>{selectedBooking.customerName}</strong></div><div><small>Email</small><strong>{selectedBooking.customerEmail || 'Not provided'}</strong></div><div><small>Phone</small><strong>{selectedBooking.customerPhone || 'Not provided'}</strong></div><div><small>Status</small><Badge tone={statusTone(selectedBooking.status)}>{formatBookingStatus(selectedBooking.status)}</Badge></div><div><small>Unit area</small><strong>{formatArea(selectedBooking.unit.area, selectedBooking.unit.areaUnit)}</strong></div><div><small>Unit value</small><strong>{formatCurrency(selectedBooking.unit.price, selectedBooking.unit.currency)}</strong></div><div><small>Created</small><strong>{new Date(selectedBooking.createdAt).toLocaleString()}</strong></div><div><small>Reservation expires</small><strong>{selectedBooking.expiresAt ? new Date(selectedBooking.expiresAt).toLocaleString() : 'No expiry'}</strong></div>{selectedBooking.notes && <div className="booking-details__notes"><small>Notes</small><p>{selectedBooking.notes}</p></div>}</div>}
     </Modal>
   </div></AppShell>

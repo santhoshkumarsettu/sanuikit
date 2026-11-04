@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { vstudioApi } from "@vstudio/api-client";
+import { UNIT_STATUS_PRESENTATION } from "@vstudio/types";
 import { Badge, Button } from "sanui";
 import { demoProject, formatCurrency } from "@vstudio/utils";
 import { AppShell } from "../../../components/app-shell";
@@ -213,15 +214,12 @@ export default function ProjectDetailsPage() {
                   <td>{formatCurrency(unit.price, unit.currency)}</td>
                   <td>
                     <Badge
-                      tone={
-                        unit.status === "AVAILABLE"
-                          ? "success"
-                          : unit.status === "RESERVED"
-                            ? "warning"
-                            : "neutral"
-                      }
+                      style={{
+                        backgroundColor: UNIT_STATUS_PRESENTATION[unit.status].fill,
+                        color: UNIT_STATUS_PRESENTATION[unit.status].text,
+                      }}
                     >
-                      {unit.status.replaceAll("_", " ")}
+                      {UNIT_STATUS_PRESENTATION[unit.status].label}
                     </Badge>
                   </td>
                 </tr>

@@ -1,10 +1,10 @@
 import type { UnitStatus } from './index.js'
 
 export const UNIT_STATUS_PRESENTATION: Record<UnitStatus, { label: string; fill: string; text: string }> = {
-  AVAILABLE: { label: 'Available', fill: '#53a27680', text: '#286347' },
-  RESERVED: { label: 'Reserved', fill: '#e5b54d88', text: '#785719' },
-  BOOKED: { label: 'Booked', fill: '#8097d080', text: '#394c85' },
-  SOLD: { label: 'Sold', fill: '#9da69f80', text: '#4c5650' },
-  BLOCKED: { label: 'Blocked', fill: '#d5877d88', text: '#813b32' },
-  OFF_MARKET: { label: 'Off market', fill: '#9b8ab180', text: '#594d70' },
+  AVAILABLE: { label: 'Available', fill: '#10b98166', text: '#065f46' },
+  RESERVED: { label: 'Reserved', fill: '#f59e0b66', text: '#92400e' },
+  BOOKED: { label: 'Booked', fill: '#3b82f666', text: '#1e40af' },
+  SOLD: { label: 'Sold', fill: '#ef444466', text: '#991b1b' },
+  BLOCKED: { label: 'Blocked', fill: '#8b5cf666', text: '#5b21b6' },
+  OFF_MARKET: { label: 'Off market', fill: '#6b728066', text: '#374151' },
 }

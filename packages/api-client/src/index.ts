@@ -48,6 +48,7 @@ export class VStudioApiClient {
   publicProject(slug: string) { return this.request<PublicProjectResponse>(`/public/projects/${encodeURIComponent(slug)}`) }
   bookings(projectId: string) { return this.request<ApiBooking[]>(`/projects/${encodeURIComponent(projectId)}/bookings`) }
   createBooking(input: CreateBookingInput) { return this.request<ApiBookingRecord>('/bookings', { method: 'POST', body: JSON.stringify(input) }) }
+  confirmBooking(bookingId: string) { return this.request<ApiBookingRecord>(`/bookings/${encodeURIComponent(bookingId)}/confirm`, { method: 'POST', body: JSON.stringify({}) }) }
   cancelBooking(bookingId: string) { return this.request<ApiBookingRecord>(`/bookings/${encodeURIComponent(bookingId)}/cancel`, { method: 'POST', body: JSON.stringify({}) }) }
 }
 

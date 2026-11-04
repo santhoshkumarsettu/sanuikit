@@ -35,6 +35,38 @@ export async function registerBookingRoutes(app: FastifyInstance) {
     return reply.code(201).send(booking.booking)
   })
 
+  app.post('/bookings/:bookingId/confirm', { preHandler: [app.authenticate, app.requirePermission('CREATE_BOOKING')] }, async (request, reply) => {
+    const context = request.auth!; const { bookingId } = request.params as { bookingId: string }
+    const result = await withTenant(context, async tx => {
+      const booking = await tx.booking.findFirst({ where: { id: bookingId, organizationId: context.organizationId }, include: { unit: true } })
+      if (!booking) return { notFound: true as const }
+      if (booking.status === 'CONFIRMED') return { booking }
+      if (booking.status !== 'PENDING') return { invalid: true as const }
+      if (booking.expiresAt && booking.expiresAt <= new Date()) {
+        if (booking.unit.status === 'RESERVED') {
+          assertUnitStatusTransition(booking.unit.status, 'AVAILABLE')
+          await tx.unit.updateMany({ where: { id: booking.unitId, version: booking.unit.version, status: 'RESERVED' }, data: { status: 'AVAILABLE', version: { increment: 1 } } })
+        }
+        const expired = await tx.booking.update({ where: { id: booking.id }, data: { status: 'EXPIRED' } })
+        return { expiredBooking: expired }
+      }
+      if (booking.unit.status !== 'RESERVED') return { conflict: true as const }
+      assertUnitStatusTransition(booking.unit.status, 'BOOKED')
+      const locked = await tx.unit.updateMany({ where: { id: booking.unitId, version: booking.unit.version, status: 'RESERVED' }, data: { status: 'BOOKED', version: { increment: 1 } } })
+      if (!locked.count) return { conflict: true as const }
+      const confirmed = await tx.booking.update({ where: { id: booking.id }, data: { status: 'CONFIRMED', expiresAt: null } })
+      await tx.auditLog.create({ data: { organizationId: context.organizationId, actorId: context.userId, action: 'BOOKING_CONFIRMED', entityType: 'Booking', entityId: booking.id, before: { status: booking.status }, after: { status: 'CONFIRMED' }, ipAddress: request.ip } })
+      await tx.auditLog.create({ data: { organizationId: context.organizationId, actorId: context.userId, action: 'UNIT_STATUS_CHANGED', entityType: 'Unit', entityId: booking.unitId, before: { status: 'RESERVED' }, after: { status: 'BOOKED' }, metadata: { bookingId: booking.id }, ipAddress: request.ip } })
+      return { booking: confirmed }
+    })
+    if ('notFound' in result) return reply.code(404).send({ code: 'NOT_FOUND', message: 'Booking not found.' })
+    if ('expiredBooking' in result) return reply.code(409).send({ code: 'BOOKING_EXPIRED', message: 'The reservation expired; the unit is available again.' })
+    if ('invalid' in result) return reply.code(409).send({ code: 'INVALID_BOOKING_STATE', message: 'Only pending bookings can be confirmed.' })
+    if ('conflict' in result) return reply.code(409).send({ code: 'WRITE_CONFLICT', message: 'The unit changed; reload bookings and try again.' })
+    void publishOrganizationEvent(context.organizationId, { type: 'BOOKING_CONFIRMED', id: result.booking.id, data: { unitId: result.booking.unitId } }).catch(error => request.log.warn({ err: error }, 'Unable to publish booking confirmation event'))
+    return result.booking
+  })
+
   app.post('/bookings/:bookingId/cancel', { preHandler: [app.authenticate, app.requirePermission('CANCEL_BOOKING')] }, async (request, reply) => {
     const context = request.auth!; const { bookingId } = request.params as { bookingId: string }
     const result = await withTenant(context, async tx => {
