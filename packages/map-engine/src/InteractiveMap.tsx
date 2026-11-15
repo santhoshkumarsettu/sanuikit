@@ -1,11 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from 'react'
-import type { Point, UnitGeometry } from '@vstudio/types'
-import { screenToWorld, zoomAt, type ViewBox } from './geometry.js'
+import type { Point, UnitGeometry, UnitPurpose } from '@vstudio/types'
+import { clampPointToLayout, screenToWorld, translateGeometryWithinLayout, zoomAt, type ViewBox } from './geometry.js'
 
 export type DrawingTool = 'select' | 'pan' | 'rectangle' | 'polygon' | 'edit'
-export interface MapShape { id: string; geometry: UnitGeometry; label?: string; fill?: string; stroke?: string }
+export interface MapShape { id: string; geometry: UnitGeometry; label?: string; fill?: string; stroke?: string; purpose?: UnitPurpose }
 export interface InteractiveMapProps {
   width: number; height: number; backgroundUrl?: string; backgroundOpacity?: number; shapes: MapShape[]; selectedId?: string; focusId?: string; selectionPopover?: ReactNode; tool: DrawingTool
   onSelect?: (id: string | undefined) => void; onHover?: (id: string | undefined) => void; onCreate?: (geometry: UnitGeometry) => void
@@ -33,6 +33,7 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
   const [dragShape, setDragShape] = useState<{ id: string; start: Point; geometry: UnitGeometry }>()
   const [selectedVertex, setSelectedVertex] = useState<{ id: string; index: number }>()
   const selected = shapes.find(shape => shape.id === selectedId)
+  const focusMap = (svg?: SVGSVGElement | null) => svg?.focus({ preventScroll: true })
   useEffect(() => { onDraftChange?.(polygon.length > 0 || Boolean(origin)) }, [onDraftChange, origin, polygon.length])
   useEffect(() => {
     if (tool !== 'polygon') setPolygon([])
@@ -66,13 +67,13 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
       height: targetHeight,
     })
   }, [focusId, height, width])
-  const worldPoint = (event: { clientX: number; clientY: number }) => { const rect = svgRef.current?.getBoundingClientRect(); return rect ? screenToWorld(event.clientX, event.clientY, rect, viewBox) : { x: 0, y: 0 } }
+  const worldPoint = (event: { clientX: number; clientY: number }) => { const rect = svgRef.current?.getBoundingClientRect(); return rect ? clampPointToLayout(screenToWorld(event.clientX, event.clientY, rect, viewBox), width, height) : { x: 0, y: 0 } }
   const startCapture = (event: PointerEvent<SVGSVGElement>) => event.currentTarget.setPointerCapture(event.pointerId)
   const finishRectangle = (end: Point) => { if (!origin || !onCreate) return; const x = Math.min(origin.x, end.x); const y = Math.min(origin.y, end.y); const rectWidth = Math.abs(end.x - origin.x); const rectHeight = Math.abs(end.y - origin.y); if (rectWidth >= 3 && rectHeight >= 3) onCreate({ kind: 'RECTANGLE', x, y, width: rectWidth, height: rectHeight }); setOrigin(undefined); setCursor(undefined) }
   const finishPolygon = () => { if (polygon.length >= 3) onCreate?.({ kind: 'POLYGON', points: polygon }); setPolygon([]) }
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     const point = worldPoint(event)
-    event.currentTarget.focus()
+    focusMap(event.currentTarget)
     if (tool === 'pan' || event.button === 1 || event.shiftKey) { startCapture(event); setPanOrigin({ clientX: event.clientX, clientY: event.clientY, box: viewBox }); return }
     if (tool === 'rectangle') { startCapture(event); setOrigin(point); setCursor(point); return }
     if (tool === 'polygon') { if (event.detail >= 2 && polygon.length >= 3) { finishPolygon(); return } setPolygon(current => [...current, point]); return }
@@ -82,17 +83,20 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
     const point = worldPoint(event)
     if (panOrigin) { const rect = event.currentTarget.getBoundingClientRect(); setViewBox({ ...panOrigin.box, x: panOrigin.box.x - (event.clientX - panOrigin.clientX) * panOrigin.box.width / rect.width, y: panOrigin.box.y - (event.clientY - panOrigin.clientY) * panOrigin.box.height / rect.height }); return }
     if (origin) { setCursor(point); return }
-    if (dragVertex && selected?.geometry.kind === 'POLYGON') { const points = selected.geometry.points.map((item, index) => index === dragVertex.index ? point : item); onGeometryChange?.(dragVertex.id, { kind: 'POLYGON', points }) }
+    if (dragVertex && selected?.geometry.kind === 'POLYGON') { const points = selected.geometry.points.map((item, index) => index === dragVertex.index ? clampPointToLayout(point, width, height) : item); onGeometryChange?.(dragVertex.id, { kind: 'POLYGON', points }) }
     if (dragCorner) {
       const { geometry, index, id } = dragCorner
       const fixed = index === 0 ? { x: geometry.x + geometry.width, y: geometry.y + geometry.height } : index === 1 ? { x: geometry.x, y: geometry.y + geometry.height } : index === 2 ? { x: geometry.x, y: geometry.y } : { x: geometry.x + geometry.width, y: geometry.y }
-      onGeometryChange?.(id, { kind: 'RECTANGLE', x: Math.min(point.x, fixed.x), y: Math.min(point.y, fixed.y), width: Math.max(3, Math.abs(point.x - fixed.x)), height: Math.max(3, Math.abs(point.y - fixed.y)) })
+      const moving = clampPointToLayout(point, width, height)
+      const minWidth = Math.min(3, width)
+      const minHeight = Math.min(3, height)
+      const x = Math.max(0, Math.min(width - minWidth, Math.min(moving.x, fixed.x)))
+      const y = Math.max(0, Math.min(height - minHeight, Math.min(moving.y, fixed.y)))
+      onGeometryChange?.(id, { kind: 'RECTANGLE', x, y, width: Math.min(width - x, Math.max(minWidth, Math.abs(moving.x - fixed.x))), height: Math.min(height - y, Math.max(minHeight, Math.abs(moving.y - fixed.y))) })
     }
     if (dragShape) {
       const dx = point.x - dragShape.start.x; const dy = point.y - dragShape.start.y
-      const geometry = dragShape.geometry.kind === 'RECTANGLE'
-        ? { ...dragShape.geometry, x: dragShape.geometry.x + dx, y: dragShape.geometry.y + dy }
-        : { ...dragShape.geometry, points: dragShape.geometry.points.map(item => ({ x: item.x + dx, y: item.y + dy })) }
+      const geometry = translateGeometryWithinLayout(dragShape.geometry, { x: dx, y: dy }, width, height)
       onGeometryChange?.(dragShape.id, geometry)
     }
   }
@@ -213,18 +217,18 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
     if (shape.geometry.kind !== 'POLYGON') return null
     const points = shape.geometry.points
     return <g className="vstudio-map__edit-handles">
-      {points.map((point, index) => <g key={`vertex-${index}`} className={`vstudio-map__vertex-handle${selectedVertex?.id === shape.id && selectedVertex.index === index ? ' is-active' : ''}`} role="button" aria-label={`Move vertex ${index + 1}`} tabIndex={0} onFocus={() => setSelectedVertex({ id: shape.id, index })} onPointerDown={event => { event.stopPropagation(); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId); event.currentTarget.ownerSVGElement?.focus(); onGeometryEditStart?.(); setSelectedVertex({ id: shape.id, index }); setDragVertex({ id: shape.id, index }) }}><circle cx={point.x} cy={point.y} r={24} className="vstudio-map__vertex-hit" /><circle cx={point.x} cy={point.y} r={8} className="vstudio-map__vertex" /></g>)}
+      {points.map((point, index) => <g key={`vertex-${index}`} className={`vstudio-map__vertex-handle${selectedVertex?.id === shape.id && selectedVertex.index === index ? ' is-active' : ''}`} role="button" aria-label={`Move vertex ${index + 1}`} tabIndex={0} onFocus={() => setSelectedVertex({ id: shape.id, index })} onPointerDown={event => { event.stopPropagation(); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onGeometryEditStart?.(); setSelectedVertex({ id: shape.id, index }); setDragVertex({ id: shape.id, index }) }}><circle cx={point.x} cy={point.y} r={24} className="vstudio-map__vertex-hit" /><circle cx={point.x} cy={point.y} r={8} className="vstudio-map__vertex" /></g>)}
     </g>
   }
   return <div ref={mapRef} className={`vstudio-map ${className}`} onPointerLeave={() => onHover?.(undefined)}>
     <div className="vstudio-map__viewport-tools" aria-label="Map zoom controls"><button type="button" onClick={() => setViewBox(box => zoomAt(box, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 0.8))} aria-label="Zoom in" title="Zoom in">+</button><button type="button" onClick={() => setViewBox(box => zoomAt(box, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 1.25))} aria-label="Zoom out" title="Zoom out">−</button><button type="button" onClick={fit} aria-label="Fit layout" title="Fit layout">Fit</button>{onFullscreenToggle && <button type="button" className="vstudio-map__fullscreen-button" onClick={onFullscreenToggle} aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Enter fullscreen'} aria-pressed={isFullscreen}><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">{isFullscreen ? <path d="M7 3v4H3m10-4v4h4M3 13h4v4m10-4h-4v4" /> : <path d="M3 7V3h4m6 0h4v4m0 6v4h-4m-6 0H3v-4" />}</svg></button>}</div>
     <svg ref={svgRef} className={`vstudio-map__svg is-${tool}`} viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`} preserveAspectRatio="none" role="application" aria-label={ariaLabel} tabIndex={0} onKeyDown={handleKeyDown} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onDoubleClick={handleDoubleClick}>
-      {backgroundUrl ? <image href={backgroundUrl} x={0} y={0} width={width} height={height} preserveAspectRatio="none" opacity={backgroundOpacity} pointerEvents="none" /> : <rect x={0} y={0} width={width} height={height} fill="#f5f7f4" pointerEvents="none" />}
-      {shapes.map(shape => <g key={shape.id} onPointerEnter={() => { if (tool === 'select') onHover?.(shape.id) }} onPointerDown={event => { if (tool === 'select') { event.stopPropagation(); event.currentTarget.ownerSVGElement?.focus(); onSelect?.(shape.id) } else if (tool === 'edit' && selectedId === shape.id) { event.stopPropagation(); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId); event.currentTarget.ownerSVGElement?.focus(); onGeometryEditStart?.(); setDragShape({ id: shape.id, start: worldPoint(event), geometry: shape.geometry }) } else if (tool === 'edit' && selectedId !== shape.id) { event.stopPropagation(); event.currentTarget.ownerSVGElement?.focus(); onSelect?.(shape.id) } }} className={`vstudio-map__shape${selectedId === shape.id ? ' is-selected' : ''}`}>
-        {shape.geometry.kind === 'RECTANGLE' ? <rect x={shape.geometry.x} y={shape.geometry.y} width={shape.geometry.width} height={shape.geometry.height} fill={shape.fill ?? '#5c987a55'} stroke={shape.stroke ?? '#397457'} vectorEffect="non-scaling-stroke" /> : <polygon points={shape.geometry.points.map(point => `${point.x},${point.y}`).join(' ')} fill={shape.fill ?? '#5c987a55'} stroke={shape.stroke ?? '#397457'} vectorEffect="non-scaling-stroke" />}
+      {backgroundUrl ? <image href={backgroundUrl} x={0} y={0} width={width} height={height} preserveAspectRatio="none" opacity={backgroundOpacity} pointerEvents="none" /> : <rect x={0} y={0} width={width} height={height} fill="var(--sanui-color-canvas)" pointerEvents="none" />}
+      {shapes.map(shape => <g key={shape.id} onPointerEnter={() => { if (tool === 'select') onHover?.(shape.id) }} onPointerDown={event => { if (tool === 'select') { event.stopPropagation(); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onSelect?.(shape.id) } else if (tool === 'edit' && selectedId === shape.id) { event.stopPropagation(); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onGeometryEditStart?.(); setDragShape({ id: shape.id, start: worldPoint(event), geometry: shape.geometry }) } else if (tool === 'edit' && selectedId !== shape.id) { event.stopPropagation(); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onSelect?.(shape.id) } }} className={`vstudio-map__shape${selectedId === shape.id ? ' is-selected' : ''}${shape.purpose === 'AMENITY' ? ' is-amenity' : ''}`}>
+        {shape.geometry.kind === 'RECTANGLE' ? <rect x={shape.geometry.x} y={shape.geometry.y} width={shape.geometry.width} height={shape.geometry.height} fill={shape.fill ?? 'var(--sanui-color-primary-fill)'} stroke={shape.stroke ?? 'var(--sanui-color-primary)'} vectorEffect="non-scaling-stroke" /> : <polygon points={shape.geometry.points.map(point => `${point.x},${point.y}`).join(' ')} fill={shape.fill ?? 'var(--sanui-color-primary-fill)'} stroke={shape.stroke ?? 'var(--sanui-color-primary)'} vectorEffect="non-scaling-stroke" />}
         {shape.label && <text x={shape.geometry.kind === 'RECTANGLE' ? shape.geometry.x + shape.geometry.width / 2 : shape.geometry.points.reduce((sum, point) => sum + point.x, 0) / shape.geometry.points.length} y={shape.geometry.kind === 'RECTANGLE' ? shape.geometry.y + shape.geometry.height / 2 : shape.geometry.points.reduce((sum, point) => sum + point.y, 0) / shape.geometry.points.length} textAnchor="middle" dominantBaseline="middle" pointerEvents="none">{shape.label}</text>}
         {tool === 'edit' && selectedId === shape.id && polygonEditControls(shape)}
-        {tool === 'edit' && selectedId === shape.id && shape.geometry.kind === 'RECTANGLE' && <g className="vstudio-map__edit-handles">{[{ x: shape.geometry.x, y: shape.geometry.y }, { x: shape.geometry.x + shape.geometry.width, y: shape.geometry.y }, { x: shape.geometry.x + shape.geometry.width, y: shape.geometry.y + shape.geometry.height }, { x: shape.geometry.x, y: shape.geometry.y + shape.geometry.height }].map((point, index) => <g key={index} className="vstudio-map__vertex-handle" role="button" aria-label={`Resize corner ${index + 1}`} tabIndex={0} onPointerDown={event => { event.stopPropagation(); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId); event.currentTarget.ownerSVGElement?.focus(); onGeometryEditStart?.(); setDragCorner({ id: shape.id, index, geometry: shape.geometry as Extract<UnitGeometry, { kind: 'RECTANGLE' }> }) }}><circle cx={point.x} cy={point.y} r={24} className="vstudio-map__vertex-hit" /><circle cx={point.x} cy={point.y} r={8} className="vstudio-map__vertex" /></g>)}</g>}
+        {tool === 'edit' && selectedId === shape.id && shape.geometry.kind === 'RECTANGLE' && <g className="vstudio-map__edit-handles">{[{ x: shape.geometry.x, y: shape.geometry.y }, { x: shape.geometry.x + shape.geometry.width, y: shape.geometry.y }, { x: shape.geometry.x + shape.geometry.width, y: shape.geometry.y + shape.geometry.height }, { x: shape.geometry.x, y: shape.geometry.y + shape.geometry.height }].map((point, index) => <g key={index} className="vstudio-map__vertex-handle" role="button" aria-label={`Resize corner ${index + 1}`} tabIndex={0} onPointerDown={event => { event.stopPropagation(); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onGeometryEditStart?.(); setDragCorner({ id: shape.id, index, geometry: shape.geometry as Extract<UnitGeometry, { kind: 'RECTANGLE' }> }) }}><circle cx={point.x} cy={point.y} r={24} className="vstudio-map__vertex-hit" /><circle cx={point.x} cy={point.y} r={8} className="vstudio-map__vertex" /></g>)}</g>}
       </g>)}
       {draftRectangle && <rect {...draftRectangle} className="vstudio-map__draft" />}
       {polygon.length > 0 && <><polyline points={polygon.map(point => `${point.x},${point.y}`).join(' ')} className="vstudio-map__draft-line" />{polygon.map((point, index) => <circle key={index} cx={point.x} cy={point.y} r={8} className="vstudio-map__vertex" />)}</>}

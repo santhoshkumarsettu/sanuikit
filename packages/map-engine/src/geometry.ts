@@ -2,6 +2,14 @@ import type { Point, UnitGeometry } from '@vstudio/types'
 
 export interface ViewBox { x: number; y: number; width: number; height: number }
 
+/** Keep pointer-derived geometry inside the uploaded layout's coordinate space. */
+export function clampPointToLayout(point: Point, width: number, height: number): Point {
+  return {
+    x: Math.max(0, Math.min(width, point.x)),
+    y: Math.max(0, Math.min(height, point.y)),
+  }
+}
+
 export function screenToWorld(clientX: number, clientY: number, rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>, viewBox: ViewBox): Point {
   return { x: viewBox.x + (clientX - rect.left) * viewBox.width / rect.width, y: viewBox.y + (clientY - rect.top) * viewBox.height / rect.height }
 }
@@ -12,6 +20,30 @@ export function geometryBounds(geometry: UnitGeometry): ViewBox {
   const ys = geometry.points.map(point => point.y)
   const minX = Math.min(...xs); const minY = Math.min(...ys)
   return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY }
+}
+
+/** Translate a whole shape without allowing any part of it to leave the layout. */
+export function translateGeometryWithinLayout(
+  geometry: UnitGeometry,
+  delta: Point,
+  width: number,
+  height: number,
+): UnitGeometry {
+  const bounds = geometryBounds(geometry)
+  const minX = -bounds.x
+  const maxX = width - bounds.x - bounds.width
+  const minY = -bounds.y
+  const maxY = height - bounds.y - bounds.height
+  const dx = maxX < minX ? 0 : Math.max(minX, Math.min(maxX, delta.x))
+  const dy = maxY < minY ? 0 : Math.max(minY, Math.min(maxY, delta.y))
+
+  if (geometry.kind === 'RECTANGLE') {
+    return { ...geometry, x: geometry.x + dx, y: geometry.y + dy }
+  }
+  return {
+    ...geometry,
+    points: geometry.points.map(point => ({ x: point.x + dx, y: point.y + dy })),
+  }
 }
 
 export function zoomAt(viewBox: ViewBox, point: Point, factor: number, minSize = 40, maxSize = 100_000): ViewBox {

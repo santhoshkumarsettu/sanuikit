@@ -16,6 +16,6 @@ const sampleUnits = [
 
 export const demoUnits: InventoryUnit[] = sampleUnits.map(([unitNumber, status, price, area, x, y]) => ({
   id: `unit-${unitNumber.toLowerCase()}`, organizationId: demoProject.organizationId, projectId: demoProject.id,
-  layoutId: demoLayout.id, unitNumber, unitType: 'PLOT', area, areaUnit: 'SQFT', price, currency: 'INR', status,
+  layoutId: demoLayout.id, unitNumber, unitType: 'PLOT', purpose: 'SALE', area, areaUnit: 'SQFT', price, currency: 'INR', status,
   geometry: { kind: 'RECTANGLE', x, y, width: 132, height: 164 }, updatedAt: demoProject.updatedAt,
 }))

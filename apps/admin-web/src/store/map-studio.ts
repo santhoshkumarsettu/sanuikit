@@ -1,20 +1,20 @@
 'use client'
 
 import { create } from 'zustand'
-import type { InventoryUnit, UnitGeometry } from '@vstudio/types'
+import type { MapStudioUnit, UnitGeometry } from '@vstudio/types'
 import type { DrawingTool } from '@vstudio/map-engine'
 
 interface MapStudioState {
-  units: InventoryUnit[]; selectedId?: string; tool: DrawingTool; undoStack: InventoryUnit[][]; redoStack: InventoryUnit[][]; geometryEditSnapshot?: InventoryUnit[]
+  units: MapStudioUnit[]; selectedId?: string; tool: DrawingTool; undoStack: MapStudioUnit[][]; redoStack: MapStudioUnit[][]; geometryEditSnapshot?: MapStudioUnit[]
   setTool: (tool: DrawingTool) => void; select: (id?: string) => void
-  hydrate: (units: InventoryUnit[]) => void; beginGeometryEdit: () => void; commitGeometryEdit: () => void
+  hydrate: (units: MapStudioUnit[]) => void; beginGeometryEdit: () => void; commitGeometryEdit: () => void
   updateGeometry: (id: string, geometry: UnitGeometry) => void; undo: () => void; redo: () => void
 }
-const snapshot = (units: InventoryUnit[]) => units.map(unit => structuredClone(unit))
+const snapshot = (units: MapStudioUnit[]) => units.map(unit => structuredClone(unit))
 
 export const useMapStudio = create<MapStudioState>((set, get) => ({
   units: [], tool: 'select', undoStack: [], redoStack: [],
-  hydrate: units => set({ units: snapshot(units), undoStack: [], redoStack: [], selectedId: undefined, geometryEditSnapshot: undefined }),
+  hydrate: units => set(state => ({ units: snapshot(units), undoStack: [], redoStack: [], selectedId: state.selectedId && units.some(unit => unit.id === state.selectedId) ? state.selectedId : undefined, geometryEditSnapshot: undefined })),
   beginGeometryEdit: () => { if (!get().geometryEditSnapshot) set({ geometryEditSnapshot: snapshot(get().units) }) },
   commitGeometryEdit: () => {
     const { geometryEditSnapshot, units, undoStack } = get()

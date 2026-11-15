@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq'
 import { Redis } from 'ioredis'
-import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { createHash } from 'node:crypto'
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { parseApiEnvironment } from '@vstudio/config'
 import { withTenant } from '@vstudio/database/tenant'
@@ -24,13 +25,20 @@ export async function processAssetOptimization(data: AssetOptimizationJob) {
   const source = Buffer.from(await object.Body.transformToByteArray())
   const optimized = await sharp(source).rotate().resize({ width: 3200, height: 3200, fit: 'inside', withoutEnlargement: true }).webp({ quality: 88 }).toBuffer()
   const thumbnail = await sharp(source).rotate().resize({ width: 600, height: 420, fit: 'inside', withoutEnlargement: true }).webp({ quality: 78 }).toBuffer()
-  const optimizedKey = `${data.organizationId}/layouts/${data.layoutId}/optimized.webp`
-  const thumbnailKey = `${data.organizationId}/layouts/${data.layoutId}/thumbnail.webp`
+  const assetVersion = createHash('sha256').update(data.assetKey).digest('hex').slice(0, 16)
+  const optimizedKey = `${data.organizationId}/layouts/${data.layoutId}/optimized-${assetVersion}.webp`
+  const thumbnailKey = `${data.organizationId}/layouts/${data.layoutId}/thumbnail-${assetVersion}.webp`
   await Promise.all([
     s3.send(new PutObjectCommand({ Bucket: storageBucket, Key: optimizedKey, Body: optimized, ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable' })),
     s3.send(new PutObjectCommand({ Bucket: storageBucket, Key: thumbnailKey, Body: thumbnail, ContentType: 'image/webp', CacheControl: 'public, max-age=31536000, immutable' })),
   ])
-  await withTenant({ organizationId: data.organizationId }, tx => tx.layout.update({ where: { id: data.layoutId }, data: { optimizedAssetKey: optimizedKey, thumbnailAssetKey: thumbnailKey } }))
+  const applied = await withTenant({ organizationId: data.organizationId }, tx => tx.layout.updateMany({ where: { id: data.layoutId, originalAssetKey: data.assetKey }, data: { optimizedAssetKey: optimizedKey, thumbnailAssetKey: thumbnailKey } }))
+  if (!applied.count) {
+    await Promise.all([
+      s3.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: optimizedKey })),
+      s3.send(new DeleteObjectCommand({ Bucket: storageBucket, Key: thumbnailKey })),
+    ])
+  }
 }
 
 export async function startAssetWorker() {

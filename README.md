@@ -2,6 +2,8 @@
 
 VStudio is a multi-tenant property inventory platform. The admin workspace manages projects, layouts, units and bookings; the public workspace presents published interactive maps. Layout geometry is stored in layout coordinates and points to inventory records in PostgreSQL; SVG is only the visual layer.
 
+> **New to this codebase?** Start with [the documentation home](docs/README.md). It links to the step-by-step local setup, product walkthrough, architecture, API, database, and shared-package guides.
+
 ## Workspace
 
 ```text

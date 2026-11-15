@@ -6,7 +6,7 @@ import { DeleteObjectsCommand } from '@aws-sdk/client-s3'
 import { s3, storageBucket } from '../layouts/storage.js'
 
 export async function registerProjectRoutes(app: FastifyInstance) {
-  app.get('/projects', { preHandler: [app.authenticate] }, async request => {
+  app.get('/projects', { preHandler: [app.authenticate, app.requirePermission('VIEW_PROJECTS')] }, async request => {
     const context = request.auth!
     const includeArchived = (request.query as { includeArchived?: string }).includeArchived === 'true'
     return withTenant(context, tx => tx.project.findMany({ where: { organizationId: context.organizationId, ...(includeArchived ? {} : { status: { not: 'ARCHIVED' as const } }) }, orderBy: { updatedAt: 'desc' }, take: 100, include: { _count: { select: { units: true, layouts: true } } } }))
@@ -24,7 +24,7 @@ export async function registerProjectRoutes(app: FastifyInstance) {
     return reply.code(201).send(project)
   })
 
-  app.get('/projects/:slug', { preHandler: [app.authenticate] }, async (request, reply) => {
+  app.get('/projects/:slug', { preHandler: [app.authenticate, app.requirePermission('VIEW_PROJECTS')] }, async (request, reply) => {
     const { slug } = request.params as { slug: string }
     const context = request.auth!
     const isId = z.string().uuid().safeParse(slug).success

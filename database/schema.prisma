@@ -56,6 +56,10 @@ enum UnitStatus {
   BLOCKED
   OFF_MARKET
 }
+enum UnitPurpose {
+  SALE
+  AMENITY
+}
 enum BookingStatus {
   PENDING
   CONFIRMED
@@ -77,6 +81,8 @@ model Organization {
   apiKeys     ApiKey[]
   invitations Invitation[]
   auditLogs   AuditLog[]
+  rolePermissions OrganizationRolePermission[]
+  customRoles OrganizationCustomRole[]
   uploadIntents LayoutUploadIntent[]
   @@map("organizations")
 }
@@ -105,11 +111,13 @@ model OrganizationMember {
   organizationId String           @map("organization_id") @db.Uuid
   userId         String           @map("user_id") @db.Uuid
   role           OrganizationRole @default(VIEWER)
+  customRoleId   String?          @map("custom_role_id") @db.Uuid
   active         Boolean          @default(true)
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customRole     OrganizationCustomRole? @relation(fields: [organizationId, customRoleId], references: [organizationId, id], onDelete: Restrict)
   @@unique([organizationId, userId])
   @@index([userId, active])
   @@map("organization_members")
@@ -133,13 +141,44 @@ model Invitation {
   invitedById    String           @map("invited_by_id") @db.Uuid
   email          String           @db.VarChar(320)
   role           OrganizationRole
+  customRoleId   String?          @map("custom_role_id") @db.Uuid
   tokenHash      String           @unique @map("token_hash") @db.VarChar(128)
   expiresAt      DateTime         @map("expires_at")
   acceptedAt     DateTime?        @map("accepted_at")
   organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   invitedBy      User             @relation("InvitedBy", fields: [invitedById], references: [id])
+  customRole     OrganizationCustomRole? @relation(fields: [organizationId, customRoleId], references: [organizationId, id], onDelete: Restrict)
   @@unique([organizationId, email])
   @@map("invitations")
+}
+
+model OrganizationRolePermission {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  role           String           @db.VarChar(64)
+  permission     String           @db.VarChar(100)
+  granted        Boolean
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, role, permission])
+  @@index([organizationId, role])
+  @@map("organization_role_permissions")
+}
+
+model OrganizationCustomRole {
+  id             String               @id @default(uuid()) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  name           String               @db.VarChar(80)
+  nameKey        String               @map("name_key") @db.VarChar(100)
+  description    String               @default("") @db.VarChar(240)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members        OrganizationMember[]
+  invitations    Invitation[]
+  @@unique([organizationId, id])
+  @@unique([organizationId, nameKey])
+  @@map("organization_custom_roles")
 }
 
 model Project {
@@ -212,6 +251,7 @@ model Unit {
   layoutId       String    @map("layout_id") @db.Uuid
   unitNumber     String    @map("unit_number") @db.VarChar(40)
   unitType       UnitType  @map("unit_type")
+  purpose        UnitPurpose @default(SALE)
   area           Decimal   @db.Decimal(14, 3)
   areaUnit       String    @default("SQFT") @map("area_unit") @db.VarChar(16)
   price          Decimal   @db.Decimal(18, 2)

@@ -7,7 +7,7 @@ import jwt from "@fastify/jwt";
 import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import websocket from "@fastify/websocket";
-import { assertPermission } from "@vstudio/auth";
+import { assertPermission, type Permission } from "@vstudio/auth";
 import { parseApiEnvironment } from "@vstudio/config";
 import { prisma } from "@vstudio/database/tenant";
 import { withTenant } from "@vstudio/database/tenant";
@@ -20,6 +20,9 @@ import { registerBookingRoutes } from "./modules/bookings/routes.js";
 import { registerLayoutRoutes } from "./modules/layouts/routes.js";
 import { registerPublicRoutes } from "./modules/public/routes.js";
 import { registerRealtimeRoutes } from "./modules/realtime/routes.js";
+import { registerAuditRoutes } from "./modules/audit/routes.js";
+import { registerOrganizationRoutes } from "./modules/organizations/routes.js";
+import { registerReportRoutes } from "./modules/reports/routes.js";
 
 const env = parseApiEnvironment();
 interface SessionToken {
@@ -161,6 +164,7 @@ export async function buildApp() {
               userId: payload.sub,
             },
           },
+          include: { customRole: true },
         }),
         tx.user.findUnique({
           where: { id: payload.sub },
@@ -168,7 +172,7 @@ export async function buildApp() {
         }),
       ]);
       return session && member?.active && !user?.disabledAt
-        ? { role: member.role, sessionId: session.id }
+        ? { role: member.customRoleId ?? member.role, sessionId: session.id }
         : null;
     });
     if (!membership) {
@@ -193,8 +197,17 @@ export async function buildApp() {
         .send({ code: "UNAUTHENTICATED", message: "Sign in to continue." });
       return;
     }
+    const overrides = request.auth.role === "OWNER"
+      ? undefined
+      : await withTenant(request.auth, async tx => {
+          const rows = await tx.organizationRolePermission.findMany({
+            where: { organizationId: request.auth!.organizationId, role: request.auth!.role },
+            select: { permission: true, granted: true },
+          });
+          return Object.fromEntries(rows.map(row => [row.permission, row.granted])) as Partial<Record<Permission, boolean>>;
+        });
     try {
-      assertPermission(request.auth.role, permission);
+      assertPermission(request.auth.role, permission, overrides);
     } catch {
       reply.code(403).send({
         code: "FORBIDDEN",
@@ -277,6 +290,9 @@ export async function buildApp() {
       await versioned.register(registerLayoutRoutes);
       await versioned.register(registerPublicRoutes);
       await versioned.register(registerRealtimeRoutes);
+      await versioned.register(registerAuditRoutes);
+      await versioned.register(registerOrganizationRoutes);
+      await versioned.register(registerReportRoutes);
     },
     { prefix: "/api/v1" },
   );

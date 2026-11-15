@@ -1,19 +1,224 @@
 :root {
+  color-scheme: light;
   --sanui-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Shared neutral scale */
   --sanui-color-text: #20231f;
+  --sanui-color-text-secondary: #49524a;
   --sanui-color-muted: #687168;
+  --sanui-color-subtle: #87938a;
+  --sanui-color-faint: #a2aaa2;
   --sanui-color-border: #dce3dc;
+  --sanui-color-border-subtle: #e9eee9;
+  --sanui-color-border-strong: #cbd5cc;
   --sanui-color-surface: #ffffff;
+  --sanui-color-surface-glass: rgb(255 255 255 / 92%);
+  --sanui-color-surface-muted: #f8faf8;
+  --sanui-color-surface-subtle: #edf0ed;
   --sanui-color-canvas: #f4f7f3;
+
+  /* SanUI brand palette */
   --sanui-color-primary: #28664c;
   --sanui-color-primary-hover: #1e533d;
+  --sanui-color-primary-strong: #174b31;
   --sanui-color-primary-contrast: #ffffff;
-  --sanui-color-success: #28664c;
-  --sanui-color-warning: #8a5700;
-  --sanui-color-danger: #b42318;
+  --sanui-color-primary-soft: #e5f3e9;
+  --sanui-color-primary-muted: #edf4ef;
+  --sanui-color-primary-border: #cce1d0;
+  --sanui-color-primary-fill: rgb(40 102 76 / 22%);
+  --sanui-color-primary-focus: rgb(40 102 76 / 15%);
+
+  /* Shared feedback and inventory status palette */
+  --sanui-color-success: #10b981;
+  --sanui-color-success-strong: #065f46;
+  --sanui-color-success-soft: #e0f1e4;
+  --sanui-color-warning: #f59e0b;
+  --sanui-color-warning-strong: #92400e;
+  --sanui-color-warning-soft: #fff1d6;
+  --sanui-color-info: #3b82f6;
+  --sanui-color-info-strong: #1e40af;
+  --sanui-color-info-soft: #e6f0fa;
+  --sanui-color-danger: #ef4444;
+  --sanui-color-danger-strong: #991b1b;
+  --sanui-color-danger-soft: #fde9e7;
+  --sanui-color-blocked: #8b5cf6;
+  --sanui-color-blocked-strong: #5b21b6;
+  --sanui-color-blocked-soft: #f3e8ff;
+  --sanui-color-off-market: #6b7280;
+  --sanui-color-off-market-strong: #374151;
+  --sanui-color-off-market-soft: #f1f2f1;
+
+  /* Status fills are translucent so the map plan stays visible underneath. */
+  --sanui-color-status-available: var(--sanui-color-success);
+  --sanui-color-status-available-fill: rgb(16 185 129 / 40%);
+  --sanui-color-status-available-ink: var(--sanui-color-success-strong);
+  --sanui-color-status-reserved: var(--sanui-color-warning);
+  --sanui-color-status-reserved-fill: rgb(245 158 11 / 40%);
+  --sanui-color-status-reserved-ink: var(--sanui-color-warning-strong);
+  --sanui-color-status-booked: var(--sanui-color-info);
+  --sanui-color-status-booked-fill: rgb(59 130 246 / 40%);
+  --sanui-color-status-booked-ink: var(--sanui-color-info-strong);
+  --sanui-color-status-sold: var(--sanui-color-danger);
+  --sanui-color-status-sold-fill: rgb(239 68 68 / 40%);
+  --sanui-color-status-sold-ink: var(--sanui-color-danger-strong);
+  --sanui-color-status-blocked: var(--sanui-color-blocked);
+  --sanui-color-status-blocked-fill: rgb(139 92 246 / 40%);
+  --sanui-color-status-blocked-ink: var(--sanui-color-blocked-strong);
+  --sanui-color-status-off-market: var(--sanui-color-off-market);
+  --sanui-color-status-off-market-fill: rgb(107 114 128 / 40%);
+  --sanui-color-status-off-market-ink: var(--sanui-color-off-market-strong);
+  /* Fuchsia separates shared amenities from every sale status color. */
+  --sanui-color-amenity: #c026d3;
+  --sanui-color-amenity-strong: #86198f;
+  --sanui-color-amenity-soft: #fae8ff;
+  --sanui-color-amenity-fill: rgb(192 38 211 / 40%);
+
+  /* Inventory categories are separate from availability status colors. */
+  --sanui-color-category-gold-fill: rgb(245 158 11 / 18%);
+  --sanui-color-category-gold-ink: #92400e;
+  --sanui-color-category-platinum-fill: rgb(99 102 241 / 16%);
+  --sanui-color-category-platinum-ink: #3730a3;
+  --sanui-color-category-silver-fill: rgb(100 116 139 / 16%);
+  --sanui-color-category-silver-ink: #475569;
+  --sanui-color-category-regular-fill: rgb(13 148 136 / 16%);
+  --sanui-color-category-regular-ink: #0f766e;
+
+  /* Elevation and keyboard focus use theme colors as well. */
+  --sanui-color-shadow-soft: rgb(32 35 31 / 5%);
+  --sanui-color-shadow: rgb(32 35 31 / 10%);
+  --sanui-color-shadow-strong: rgb(32 35 31 / 18%);
+  --sanui-color-backdrop: rgb(32 35 31 / 42%);
+  --sanui-shadow-sm: 0 2px 8px var(--sanui-color-shadow-soft);
+  --sanui-shadow-card: 0 12px 36px var(--sanui-color-shadow-soft);
+  --sanui-shadow-hover: 0 16px 40px var(--sanui-color-shadow);
+  --sanui-focus-ring: 0 0 0 3px var(--sanui-color-primary-focus);
+
   --sanui-radius-sm: 6px;
   --sanui-radius-md: 10px;
   --sanui-radius-lg: 16px;
-  --sanui-shadow-card: 0 12px 36px rgb(35 56 43 / 8%);
-  --sanui-focus-ring: 0 0 0 3px rgb(46 125 88 / 25%);
+}
+
+/* Blue is the optional custom brand family. */
+:root[data-theme-mode='custom'][data-theme-family='blue'] {
+  --sanui-color-primary: #2563eb;
+  --sanui-color-primary-hover: #1d4ed8;
+  --sanui-color-primary-strong: #1e3a8a;
+  --sanui-color-primary-contrast: #ffffff;
+  --sanui-color-primary-soft: #eff6ff;
+  --sanui-color-primary-muted: #dbeafe;
+  --sanui-color-primary-border: #bfdbfe;
+  --sanui-color-primary-fill: rgb(37 99 235 / 22%);
+  --sanui-color-primary-focus: rgb(37 99 235 / 18%);
+}
+
+/* Explicit dark mode keeps each surface and control on the same neutral scale. */
+:root[data-theme-mode='dark'] {
+  color-scheme: dark;
+  --sanui-color-text: #edf2f7;
+  --sanui-color-text-secondary: #d1d9e2;
+  --sanui-color-muted: #a8b3bf;
+  --sanui-color-subtle: #8996a3;
+  --sanui-color-faint: #6f7d8a;
+  --sanui-color-border: #34404b;
+  --sanui-color-border-subtle: #2b3540;
+  --sanui-color-border-strong: #4b5966;
+  --sanui-color-surface: #192129;
+  --sanui-color-surface-glass: rgb(25 33 41 / 92%);
+  --sanui-color-surface-muted: #202a34;
+  --sanui-color-surface-subtle: #293540;
+  --sanui-color-canvas: #12181e;
+  --sanui-color-primary: #74c69d;
+  --sanui-color-primary-hover: #95d5b2;
+  --sanui-color-primary-strong: #b7e4c7;
+  --sanui-color-primary-contrast: #102017;
+  --sanui-color-primary-soft: rgb(116 198 157 / 16%);
+  --sanui-color-primary-muted: rgb(116 198 157 / 11%);
+  --sanui-color-primary-border: rgb(116 198 157 / 30%);
+  --sanui-color-primary-fill: rgb(116 198 157 / 22%);
+  --sanui-color-primary-focus: rgb(116 198 157 / 24%);
+  --sanui-color-success-strong: #6ee7b7;
+  --sanui-color-success-soft: rgb(16 185 129 / 16%);
+  --sanui-color-warning-strong: #fcd34d;
+  --sanui-color-warning-soft: rgb(245 158 11 / 16%);
+  --sanui-color-info-strong: #93c5fd;
+  --sanui-color-info-soft: rgb(59 130 246 / 18%);
+  --sanui-color-amenity: #e879f9;
+  --sanui-color-amenity-strong: #f5d0fe;
+  --sanui-color-amenity-soft: rgb(192 38 211 / 18%);
+  --sanui-color-amenity-fill: rgb(192 38 211 / 40%);
+  --sanui-color-category-gold-fill: rgb(245 158 11 / 23%);
+  --sanui-color-category-gold-ink: #fcd34d;
+  --sanui-color-category-platinum-fill: rgb(129 140 248 / 22%);
+  --sanui-color-category-platinum-ink: #c7d2fe;
+  --sanui-color-category-silver-fill: rgb(148 163 184 / 20%);
+  --sanui-color-category-silver-ink: #cbd5e1;
+  --sanui-color-category-regular-fill: rgb(45 212 191 / 20%);
+  --sanui-color-category-regular-ink: #5eead4;
+  --sanui-color-danger-strong: #fca5a5;
+  --sanui-color-danger-soft: rgb(239 68 68 / 16%);
+  --sanui-color-blocked-strong: #c4b5fd;
+  --sanui-color-blocked-soft: rgb(139 92 246 / 18%);
+  --sanui-color-off-market-strong: #d1d5db;
+  --sanui-color-off-market-soft: rgb(107 114 128 / 18%);
+  --sanui-color-shadow-soft: rgb(0 0 0 / 18%);
+  --sanui-color-shadow: rgb(0 0 0 / 28%);
+  --sanui-color-shadow-strong: rgb(0 0 0 / 42%);
+  --sanui-color-backdrop: rgb(0 0 0 / 62%);
+}
+
+/* System mode follows the operating system preference without a separate page reload. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme-mode='system'] {
+    color-scheme: dark;
+    --sanui-color-text: #edf2f7;
+    --sanui-color-text-secondary: #d1d9e2;
+    --sanui-color-muted: #a8b3bf;
+    --sanui-color-subtle: #8996a3;
+    --sanui-color-faint: #6f7d8a;
+    --sanui-color-border: #34404b;
+    --sanui-color-border-subtle: #2b3540;
+    --sanui-color-border-strong: #4b5966;
+    --sanui-color-surface: #192129;
+    --sanui-color-surface-glass: rgb(25 33 41 / 92%);
+    --sanui-color-surface-muted: #202a34;
+    --sanui-color-surface-subtle: #293540;
+    --sanui-color-canvas: #12181e;
+    --sanui-color-primary: #74c69d;
+    --sanui-color-primary-hover: #95d5b2;
+    --sanui-color-primary-strong: #b7e4c7;
+    --sanui-color-primary-contrast: #102017;
+    --sanui-color-primary-soft: rgb(116 198 157 / 16%);
+    --sanui-color-primary-muted: rgb(116 198 157 / 11%);
+    --sanui-color-primary-border: rgb(116 198 157 / 30%);
+    --sanui-color-primary-fill: rgb(116 198 157 / 22%);
+    --sanui-color-primary-focus: rgb(116 198 157 / 24%);
+    --sanui-color-success-strong: #6ee7b7;
+    --sanui-color-success-soft: rgb(16 185 129 / 16%);
+    --sanui-color-warning-strong: #fcd34d;
+    --sanui-color-warning-soft: rgb(245 158 11 / 16%);
+    --sanui-color-info-strong: #93c5fd;
+    --sanui-color-info-soft: rgb(59 130 246 / 18%);
+    --sanui-color-amenity: #e879f9;
+    --sanui-color-amenity-strong: #f5d0fe;
+    --sanui-color-amenity-soft: rgb(192 38 211 / 18%);
+    --sanui-color-amenity-fill: rgb(192 38 211 / 40%);
+    --sanui-color-category-gold-fill: rgb(245 158 11 / 23%);
+    --sanui-color-category-gold-ink: #fcd34d;
+    --sanui-color-category-platinum-fill: rgb(129 140 248 / 22%);
+    --sanui-color-category-platinum-ink: #c7d2fe;
+    --sanui-color-category-silver-fill: rgb(148 163 184 / 20%);
+    --sanui-color-category-silver-ink: #cbd5e1;
+    --sanui-color-category-regular-fill: rgb(45 212 191 / 20%);
+    --sanui-color-category-regular-ink: #5eead4;
+    --sanui-color-danger-strong: #fca5a5;
+    --sanui-color-danger-soft: rgb(239 68 68 / 16%);
+    --sanui-color-blocked-strong: #c4b5fd;
+    --sanui-color-blocked-soft: rgb(139 92 246 / 18%);
+    --sanui-color-off-market-strong: #d1d5db;
+    --sanui-color-off-market-soft: rgb(107 114 128 / 18%);
+    --sanui-color-shadow-soft: rgb(0 0 0 / 18%);
+    --sanui-color-shadow: rgb(0 0 0 / 28%);
+    --sanui-color-shadow-strong: rgb(0 0 0 / 42%);
+    --sanui-color-backdrop: rgb(0 0 0 / 62%);
+  }
 }
