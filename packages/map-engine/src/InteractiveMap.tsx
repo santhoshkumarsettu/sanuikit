@@ -2,19 +2,24 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import type { Point, UnitGeometry, UnitPurpose } from '@vstudio/types'
-import { clampPointToLayout, screenToWorld, translateGeometryWithinLayout, zoomAt, type ViewBox } from './geometry.js'
+import { clampPointToLayout, fittedViewport, geometryBounds, revealBounds, screenToWorld, translateGeometryWithinLayout, zoomAt, type ViewBox } from './geometry.js'
 
 export type DrawingTool = 'select' | 'pan' | 'rectangle' | 'polygon' | 'edit'
 export interface MapShape { id: string; geometry: UnitGeometry; label?: string; fill?: string; stroke?: string; purpose?: UnitPurpose }
 export interface InteractiveMapProps {
   width: number; height: number; backgroundUrl?: string; backgroundOpacity?: number; shapes: MapShape[]; selectedId?: string; focusId?: string; selectionPopover?: ReactNode; tool: DrawingTool
+  preserveAspectRatio?: boolean
+  fitOnFullscreenChange?: boolean
+  revealShape?: { id: string }
+  allowPageScroll?: boolean
+  touchHint?: string
   onSelect?: (id: string | undefined) => void; onHover?: (id: string | undefined) => void; onCreate?: (geometry: UnitGeometry) => void
   isFullscreen?: boolean; onFullscreenToggle?: () => void
   onGeometryChange?: (id: string, geometry: UnitGeometry) => void; onGeometryEditStart?: () => void; onGeometryEditEnd?: () => void; className?: string; ariaLabel?: string
   onUndo?: () => void; onRedo?: () => void; onDraftChange?: (hasDraft: boolean) => void
 }
 
-export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity = 1, shapes, selectedId, focusId, selectionPopover, tool, onSelect, onHover, onCreate, onGeometryChange, onGeometryEditStart, onGeometryEditEnd, onUndo, onRedo, onDraftChange, isFullscreen = false, onFullscreenToggle, className = '', ariaLabel = 'Interactive property layout' }: InteractiveMapProps) {
+export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity = 1, shapes, selectedId, focusId, selectionPopover, tool, onSelect, onHover, onCreate, onGeometryChange, onGeometryEditStart, onGeometryEditEnd, onUndo, onRedo, onDraftChange, isFullscreen = false, onFullscreenToggle, className = '', ariaLabel = 'Interactive property layout', preserveAspectRatio = false, fitOnFullscreenChange = false, revealShape, allowPageScroll = false, touchHint }: InteractiveMapProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const mapRef = useRef<HTMLDivElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -34,6 +39,7 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
   const [selectedVertex, setSelectedVertex] = useState<{ id: string; index: number }>()
   const selected = shapes.find(shape => shape.id === selectedId)
   const focusMap = (svg?: SVGSVGElement | null) => svg?.focus({ preventScroll: true })
+  const selectOnClick = allowPageScroll && tool === 'select'
   useEffect(() => { onDraftChange?.(polygon.length > 0 || Boolean(origin)) }, [onDraftChange, origin, polygon.length])
   useEffect(() => {
     if (tool !== 'polygon') setPolygon([])
@@ -67,21 +73,41 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
       height: targetHeight,
     })
   }, [focusId, height, width])
-  const worldPoint = (event: { clientX: number; clientY: number }) => { const rect = svgRef.current?.getBoundingClientRect(); return rect ? clampPointToLayout(screenToWorld(event.clientX, event.clientY, rect, viewBox), width, height) : { x: 0, y: 0 } }
+  useLayoutEffect(() => {
+    const shape = shapesRef.current.find(item => item.id === revealShape?.id)
+    if (shape) setViewBox(current => revealBounds(current, geometryBounds(shape.geometry)))
+  }, [revealShape])
+  const worldPoint = (event: { clientX: number; clientY: number }) => {
+    const rect = svgRef.current?.getBoundingClientRect()
+    if (!rect?.width || !rect.height) return { x: 0, y: 0 }
+    const viewport = preserveAspectRatio ? fittedViewport(rect, viewBox) : rect
+    return clampPointToLayout(screenToWorld(event.clientX, event.clientY, viewport, viewBox), width, height)
+  }
   const startCapture = (event: PointerEvent<SVGSVGElement>) => event.currentTarget.setPointerCapture(event.pointerId)
   const finishRectangle = (end: Point) => { if (!origin || !onCreate) return; const x = Math.min(origin.x, end.x); const y = Math.min(origin.y, end.y); const rectWidth = Math.abs(end.x - origin.x); const rectHeight = Math.abs(end.y - origin.y); if (rectWidth >= 3 && rectHeight >= 3) onCreate({ kind: 'RECTANGLE', x, y, width: rectWidth, height: rectHeight }); setOrigin(undefined); setCursor(undefined) }
   const finishPolygon = () => { if (polygon.length >= 3) onCreate?.({ kind: 'POLYGON', points: polygon }); setPolygon([]) }
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
+    if (selectOnClick && event.pointerType === 'touch') return
     const point = worldPoint(event)
     focusMap(event.currentTarget)
     if (tool === 'pan' || event.button === 1 || event.shiftKey) { startCapture(event); setPanOrigin({ clientX: event.clientX, clientY: event.clientY, box: viewBox }); return }
     if (tool === 'rectangle') { startCapture(event); setOrigin(point); setCursor(point); return }
     if (tool === 'polygon') { if (event.detail >= 2 && polygon.length >= 3) { finishPolygon(); return } setPolygon(current => [...current, point]); return }
-    if (tool === 'select') onSelect?.(undefined)
+    if (tool === 'select' && !selectOnClick) onSelect?.(undefined)
   }
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const point = worldPoint(event)
-    if (panOrigin) { const rect = event.currentTarget.getBoundingClientRect(); setViewBox({ ...panOrigin.box, x: panOrigin.box.x - (event.clientX - panOrigin.clientX) * panOrigin.box.width / rect.width, y: panOrigin.box.y - (event.clientY - panOrigin.clientY) * panOrigin.box.height / rect.height }); return }
+    if (panOrigin) {
+      const rect = event.currentTarget.getBoundingClientRect()
+      if (!rect.width || !rect.height) return
+      const viewport = preserveAspectRatio ? fittedViewport(rect, panOrigin.box) : rect
+      setViewBox({
+        ...panOrigin.box,
+        x: panOrigin.box.x - (event.clientX - panOrigin.clientX) * panOrigin.box.width / viewport.width,
+        y: panOrigin.box.y - (event.clientY - panOrigin.clientY) * panOrigin.box.height / viewport.height,
+      })
+      return
+    }
     if (origin) { setCursor(point); return }
     if (dragVertex && selected?.geometry.kind === 'POLYGON') { const points = selected.geometry.points.map((item, index) => index === dragVertex.index ? clampPointToLayout(point, width, height) : item); onGeometryChange?.(dragVertex.id, { kind: 'POLYGON', points }) }
     if (dragCorner) {
@@ -160,18 +186,20 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
     setSelectedVertex({ id: shape.id, index: closestIndex + 1 })
   }
   const handleWheel = useCallback((event: globalThis.WheelEvent) => {
+    if (allowPageScroll && !isFullscreen && !event.ctrlKey && !event.metaKey) return
     event.preventDefault()
     event.stopPropagation()
     const svg = svgRef.current
     const rect = svg?.getBoundingClientRect()
     if (!rect?.width || !rect.height) return
     const currentView = viewBoxRef.current
-    const point = screenToWorld(event.clientX, event.clientY, rect, currentView)
+    const viewport = preserveAspectRatio ? fittedViewport(rect, currentView) : rect
+    const point = screenToWorld(event.clientX, event.clientY, viewport, currentView)
     const deltaScale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rect.height : 1
     const delta = Math.max(-120, Math.min(120, event.deltaY * deltaScale))
     const factor = Math.exp(delta * 0.001)
     setViewBox(current => zoomAt(current, point, factor))
-  }, [])
+  }, [allowPageScroll, isFullscreen, preserveAspectRatio])
   useEffect(() => {
     const svg = svgRef.current
     if (!svg) return
@@ -179,12 +207,16 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
     return () => svg.removeEventListener('wheel', handleWheel, true)
   }, [handleWheel])
   const fit = useCallback(() => setViewBox({ x: 0, y: 0, width, height }), [width, height])
+  useLayoutEffect(() => {
+    if (fitOnFullscreenChange) fit()
+  }, [fit, fitOnFullscreenChange, isFullscreen])
   const draftRectangle = useMemo(() => origin && cursor ? { x: Math.min(origin.x, cursor.x), y: Math.min(origin.y, cursor.y), width: Math.abs(cursor.x - origin.x), height: Math.abs(cursor.y - origin.y) } : undefined, [origin, cursor])
   useLayoutEffect(() => {
     if (!selected || !selectionPopover) return
     const map = mapRef.current
+    const svg = svgRef.current
     const popoverElement = popoverRef.current
-    if (!map || !popoverElement) return
+    if (!map || !svg || !popoverElement) return
     const place = () => {
       const mapRect = map.getBoundingClientRect()
       const popoverRect = popoverElement.getBoundingClientRect()
@@ -192,8 +224,9 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
       const center = selected.geometry.kind === 'RECTANGLE'
         ? { x: selected.geometry.x + selected.geometry.width / 2, y: selected.geometry.y + selected.geometry.height / 2 }
         : { x: selected.geometry.points.reduce((sum, point) => sum + point.x, 0) / selected.geometry.points.length, y: selected.geometry.points.reduce((sum, point) => sum + point.y, 0) / selected.geometry.points.length }
-      const centerX = (center.x - viewBox.x) / viewBox.width * mapRect.width
-      const centerY = (center.y - viewBox.y) / viewBox.height * mapRect.height
+      const viewport = preserveAspectRatio ? fittedViewport(svg.getBoundingClientRect(), viewBox) : mapRect
+      const centerX = viewport.left - mapRect.left + (center.x - viewBox.x) / viewBox.width * viewport.width
+      const centerY = viewport.top - mapRect.top + (center.y - viewBox.y) / viewBox.height * viewport.height
       const width = Math.min(popoverRect.width, mapRect.width - 24)
       const height = Math.min(popoverRect.height, mapRect.height - 24)
       const left = Math.max(12, Math.min(mapRect.width - width - 12, centerX - width / 2))
@@ -212,7 +245,7 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
     observer.observe(popoverElement)
     window.addEventListener('resize', place)
     return () => { observer.disconnect(); window.removeEventListener('resize', place) }
-  }, [selected, selectionPopover, viewBox])
+  }, [selected, selectionPopover, viewBox, preserveAspectRatio])
   const polygonEditControls = (shape: MapShape) => {
     if (shape.geometry.kind !== 'POLYGON') return null
     const points = shape.geometry.points
@@ -222,9 +255,57 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
   }
   return <div ref={mapRef} className={`vstudio-map ${className}`} onPointerLeave={() => onHover?.(undefined)}>
     <div className="vstudio-map__viewport-tools" aria-label="Map zoom controls"><button type="button" onClick={() => setViewBox(box => zoomAt(box, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 0.8))} aria-label="Zoom in" title="Zoom in">+</button><button type="button" onClick={() => setViewBox(box => zoomAt(box, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 1.25))} aria-label="Zoom out" title="Zoom out">−</button><button type="button" onClick={fit} aria-label="Fit layout" title="Fit layout">Fit</button>{onFullscreenToggle && <button type="button" className="vstudio-map__fullscreen-button" onClick={onFullscreenToggle} aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'} title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Enter fullscreen'} aria-pressed={isFullscreen}><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">{isFullscreen ? <path d="M7 3v4H3m10-4v4h4M3 13h4v4m10-4h-4v4" /> : <path d="M3 7V3h4m6 0h4v4m0 6v4h-4m-6 0H3v-4" />}</svg></button>}</div>
-    <svg ref={svgRef} className={`vstudio-map__svg is-${tool}`} viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`} preserveAspectRatio="none" role="application" aria-label={ariaLabel} tabIndex={0} onKeyDown={handleKeyDown} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onDoubleClick={handleDoubleClick}>
+    <svg
+      ref={svgRef}
+      className={`vstudio-map__svg is-${tool}`}
+      viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`}
+      preserveAspectRatio={preserveAspectRatio ? 'xMidYMid meet' : 'none'}
+      role="application"
+      aria-label={ariaLabel}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onDoubleClick={handleDoubleClick}
+      onClick={selectOnClick ? event => { if (!event.shiftKey) onSelect?.(undefined) } : undefined}
+    >
       {backgroundUrl ? <image href={backgroundUrl} x={0} y={0} width={width} height={height} preserveAspectRatio="none" opacity={backgroundOpacity} pointerEvents="none" /> : <rect x={0} y={0} width={width} height={height} fill="var(--sanui-color-canvas)" pointerEvents="none" />}
-      {shapes.map(shape => <g key={shape.id} onPointerEnter={() => { if (tool === 'select') onHover?.(shape.id) }} onPointerDown={event => { if (tool === 'select') { event.stopPropagation(); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onSelect?.(shape.id) } else if (tool === 'edit' && selectedId === shape.id) { event.stopPropagation(); event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onGeometryEditStart?.(); setDragShape({ id: shape.id, start: worldPoint(event), geometry: shape.geometry }) } else if (tool === 'edit' && selectedId !== shape.id) { event.stopPropagation(); event.currentTarget.ownerSVGElement?.focus({ preventScroll: true }); onSelect?.(shape.id) } }} className={`vstudio-map__shape${selectedId === shape.id ? ' is-selected' : ''}${shape.purpose === 'AMENITY' ? ' is-amenity' : ''}`}>
+      {shapes.map(shape => <g
+        key={shape.id}
+        onPointerEnter={event => {
+          if (tool === 'select' && !(selectOnClick && event.pointerType === 'touch')) onHover?.(shape.id)
+        }}
+        onPointerDown={event => {
+          if (tool === 'select') {
+            if (selectOnClick && (event.shiftKey || event.button === 1)) return
+            event.stopPropagation()
+            if (!selectOnClick) {
+              focusMap(event.currentTarget.ownerSVGElement)
+              onSelect?.(shape.id)
+            }
+          } else if (tool === 'edit') {
+            event.stopPropagation()
+            const svg = event.currentTarget.ownerSVGElement
+            focusMap(svg)
+            if (selectedId === shape.id) {
+              svg?.setPointerCapture(event.pointerId)
+              onGeometryEditStart?.()
+              setDragShape({ id: shape.id, start: worldPoint(event), geometry: shape.geometry })
+            } else {
+              onSelect?.(shape.id)
+            }
+          }
+        }}
+        onClick={selectOnClick ? event => {
+          event.stopPropagation()
+          if (event.shiftKey) return
+          focusMap(event.currentTarget.ownerSVGElement)
+          onSelect?.(shape.id)
+        } : undefined}
+        className={`vstudio-map__shape${selectedId === shape.id ? ' is-selected' : ''}${shape.purpose === 'AMENITY' ? ' is-amenity' : ''}`}
+      >
         {shape.geometry.kind === 'RECTANGLE' ? <rect x={shape.geometry.x} y={shape.geometry.y} width={shape.geometry.width} height={shape.geometry.height} fill={shape.fill ?? 'var(--sanui-color-primary-fill)'} stroke={shape.stroke ?? 'var(--sanui-color-primary)'} vectorEffect="non-scaling-stroke" /> : <polygon points={shape.geometry.points.map(point => `${point.x},${point.y}`).join(' ')} fill={shape.fill ?? 'var(--sanui-color-primary-fill)'} stroke={shape.stroke ?? 'var(--sanui-color-primary)'} vectorEffect="non-scaling-stroke" />}
         {shape.label && <text x={shape.geometry.kind === 'RECTANGLE' ? shape.geometry.x + shape.geometry.width / 2 : shape.geometry.points.reduce((sum, point) => sum + point.x, 0) / shape.geometry.points.length} y={shape.geometry.kind === 'RECTANGLE' ? shape.geometry.y + shape.geometry.height / 2 : shape.geometry.points.reduce((sum, point) => sum + point.y, 0) / shape.geometry.points.length} textAnchor="middle" dominantBaseline="middle" pointerEvents="none">{shape.label}</text>}
         {tool === 'edit' && selectedId === shape.id && polygonEditControls(shape)}
@@ -236,6 +317,13 @@ export function InteractiveMap({ width, height, backgroundUrl, backgroundOpacity
     {selected && selectionPopover && <div className="vstudio-map__selection-layer"><div ref={popoverRef} className={`vstudio-map__selection-bubble ${popoverPosition.direction}`} style={{ left: `${popoverPosition.left}px`, top: `${popoverPosition.top}px`, '--callout-arrow-x': `${popoverPosition.arrowX}%` } as CSSProperties} onPointerDown={event => event.stopPropagation()}>{selectionPopover}</div></div>}
     {tool === 'polygon' && <div className="vstudio-map__hint"><span>Click to add boundary points · {polygon.length >= 3 ? 'finish when ready' : `${3 - polygon.length} more point${polygon.length === 2 ? '' : 's'} needed`} · Escape to cancel · {polygon.length} points</span>{polygon.length >= 3 && <button type="button" className="is-primary" onClick={finishPolygon}>Finish polygon</button>}{polygon.length > 0 && <button type="button" onClick={cancelDraft}>Cancel drawing</button>}</div>}
     {tool === 'edit' && <div className="vstudio-map__hint"><span>Drag a corner to reshape · click a corner, then remove it · double-click an edge to add one · Ctrl/Cmd+Z to undo</span><button type="button" title={removeVertexTitle} aria-label="Remove selected polygon point" disabled={!canRemoveSelectedVertex} onClick={removeSelectedVertex}>Remove selected point</button></div>}
-    {(tool === 'select' || tool === 'pan') && <div className="vstudio-map__hint"><span>Click the map, then hold Ctrl/⌘ + arrow keys to pan · add Shift for larger steps</span></div>}
+    {(tool === 'select' || tool === 'pan') && (
+      <div className="vstudio-map__hint">
+        <span className={touchHint ? 'vstudio-map__keyboard-hint' : undefined}>
+          Click the map, then hold Ctrl/⌘ + arrow keys to pan · add Shift for larger steps
+        </span>
+        {touchHint && <span className="vstudio-map__touch-hint">{touchHint}</span>}
+      </div>
+    )}
   </div>
 }

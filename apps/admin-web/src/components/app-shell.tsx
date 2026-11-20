@@ -7,8 +7,9 @@ import { useQuery } from '@tanstack/react-query'
 import { vstudioApi } from '@vstudio/api-client'
 import type { Permission } from '@vstudio/auth'
 import { demoProject } from '@vstudio/utils'
-import { Skeleton, Spinner } from 'sanui'
+import { Skeleton, Spinner, ThemeSwitcher } from 'sanui'
 import { usePermissions } from '../hooks/use-permissions'
+import { useAppearance } from './appearance-provider'
 
 type NavItem = { href: string; label: string; icon: string; permission: Permission }
 type CurrentPage = Pick<NavItem, 'href' | 'label' | 'permission'>
@@ -44,6 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const { isSuccess } = useQuery({ queryKey: ['projects'], queryFn: () => vstudioApi.projects(), retry: false, staleTime: 60_000 })
   const { accountQuery: account, can } = usePermissions()
+  const { family, setFamily } = useAppearance()
   useEffect(() => { if (account.error && 'status' in account.error && account.error.status === 401) router.replace('/login') }, [account.error, router])
   const current = itemForPath(pathname)
   const canOpenSettings = can('VIEW_SETTINGS') || can('MANAGE_USERS') || can('MANAGE_API_KEYS')
@@ -106,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     </aside>
     <div className="workspace">
-      <header className="topbar"><div className="breadcrumbs">{account.isPending ? <Skeleton width={116} height={11} /> : <span>{organizationName}</span>}<span>/</span><strong>{current?.label ?? 'Workspace'}</strong></div><div className="topbar-actions"><div className="search-trigger"><span>⌕</span> Search anything <kbd>⌘ K</kbd></div><button type="button" className="icon-action" aria-label="Notifications">♧</button><button type="button" className="icon-action" aria-label="Sign out" onClick={() => void vstudioApi.logout().finally(() => router.push('/login'))}>↗</button></div></header>
+      <header className="topbar"><div className="breadcrumbs">{account.isPending ? <Skeleton width={116} height={11} /> : <span>{organizationName}</span>}<span>/</span><strong>{current?.label ?? 'Workspace'}</strong></div><div className="topbar-actions"><ThemeSwitcher className="topbar-theme-switcher" value={family} onChange={setFamily} /><div className="search-trigger"><span>⌕</span> Search anything <kbd>⌘ K</kbd></div><button type="button" className="icon-action" aria-label="Notifications">♧</button><button type="button" className="icon-action" aria-label="Sign out" onClick={() => void vstudioApi.logout().finally(() => router.push('/login'))}>↗</button></div></header>
       <main className="page-content">
         {accountUnavailable && <div className="account-error-banner" role="alert"><div><strong>Workspace details could not be loaded</strong><p>The account request failed. Retry to load the current workspace and member details.</p></div><button type="button" onClick={() => void account.refetch()} disabled={account.isFetching}>{account.isFetching ? <Spinner label="Retrying account request" size="sm" /> : 'Retry'}</button></div>}
         {accessDenied ? <section className="access-denied-card" role="status"><span className="access-denied-icon" aria-hidden="true">⌑</span><div><h1>Access not granted</h1><p>Your <strong>{roleLabel}</strong> role doesn’t include permission to open {current?.label.toLowerCase()}. Ask a workspace owner to review your role in Access control.</p><Link href="/">Return to overview</Link></div></section> : children}

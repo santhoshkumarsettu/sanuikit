@@ -17,6 +17,9 @@ export const geometrySchema = z.discriminatedUnion("kind", [
     points: z.array(pointSchema).min(3).max(256),
   }),
 ]);
+export const PROJECT_LOGO_CONTENT_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export const PROJECT_LOGO_MAX_BYTES = 5 * 1024 * 1024;
+
 export const projectCreateSchema = z.object({
   name: z.string().trim().min(2).max(120),
   slug: z
@@ -38,6 +41,15 @@ export const projectCreateSchema = z.object({
   ]),
   description: z.string().max(5000).optional(),
   location: z.string().max(240).optional(),
+  contactEmail: z.string().trim().max(320).pipe(z.email("Enter a valid sales email.").or(z.literal(""))).optional(),
+  contactPhone: z.string().trim().max(32).refine((phone) =>
+    !phone || (/^\+?[\d().\s-]+$/.test(phone) && /^\+?\d{7,15}$/.test(phone.replace(/[().\s-]/g, ""))),
+    "Enter a valid sales mobile number. Include the country code for international callers.",
+  ).optional(),
+});
+export const projectUpdateSchema = projectCreateSchema.partial().extend({
+  status: z.enum(["DRAFT", "ACTIVE"]).optional(),
+  removeLogo: z.boolean().optional(),
 });
 export const unitDetailsSchema = z.object({
   customTypeName: z.string().trim().max(80).optional(),

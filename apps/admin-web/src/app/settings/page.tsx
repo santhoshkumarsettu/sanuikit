@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { vstudioApi } from "@vstudio/api-client";
-import { Button } from "sanui";
+import { Button, Input, SelectControl } from "sanui";
 import { AppShell } from "../../components/app-shell";
 import {
   useAppearance,
@@ -49,11 +49,6 @@ const themeModes: { value: ThemeMode; label: string; description: string }[] = [
     value: "dark",
     label: "Dark",
     description: "Use a dark canvas and accessible light text.",
-  },
-  {
-    value: "custom",
-    label: "Custom",
-    description: "Choose the Green or Blue SanUI brand family.",
   },
 ];
 
@@ -196,7 +191,7 @@ export default function SettingsPage() {
                   <div className="form-grid">
                     <div className="form-field">
                       <label htmlFor="org-name">Organization name</label>
-                      <input
+                      <Input
                         id="org-name"
                         disabled={loading || !canEditOrganization}
                         {...form.register("name")}
@@ -204,7 +199,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="form-field">
                       <label htmlFor="org-slug">Workspace slug</label>
-                      <input
+                      <Input
                         id="org-slug"
                         disabled={loading || !canEditOrganization}
                         {...form.register("slug")}
@@ -267,7 +262,7 @@ export default function SettingsPage() {
                             <small>{member.email}{member.active ? "" : " · Inactive"}</small>
                           </span>
                           <label className="sr-only" htmlFor={`role-${member.id}`}>Role for {member.name}</label>
-                          <select
+                          <SelectControl
                             id={`role-${member.id}`}
                             className="member-role-select"
                             value={member.role}
@@ -276,7 +271,7 @@ export default function SettingsPage() {
                           >
                             {member.role === "OWNER" && <option value="OWNER">Owner</option>}
                             {roleOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-                          </select>
+                          </SelectControl>
                           {!protectedMember && member.userId !== currentUserId && canEdit && (
                             <Button
                               variant="ghost"
@@ -315,15 +310,15 @@ export default function SettingsPage() {
                 <p>Choose which property details are visible to customers.</p>
                 <div className="setting-options">
                   <label className="setting-check">
-                    <input type="checkbox" defaultChecked />{" "}
+                    <Input type="checkbox" defaultChecked />{" "}
                     <span>Display prices on public maps</span>
                   </label>
                   <label className="setting-check">
-                    <input type="checkbox" defaultChecked />{" "}
+                    <Input type="checkbox" defaultChecked />{" "}
                     <span>Display area measurements</span>
                   </label>
                   <label className="setting-check">
-                    <input type="checkbox" /> <span>Display sold units</span>
+                    <Input type="checkbox" /> <span>Display sold units</span>
                   </label>
                 </div>
                 <div className="form-actions">
@@ -361,7 +356,7 @@ export default function SettingsPage() {
                   <div className="appearance-fields">
                     <div className="form-field">
                       <label htmlFor="theme-mode">Theme</label>
-                      <select
+                      <SelectControl
                         id="theme-mode"
                         className="appearance-select sanui-select"
                         value={mode}
@@ -374,7 +369,7 @@ export default function SettingsPage() {
                             {option.label}
                           </option>
                         ))}
-                      </select>
+                      </SelectControl>
                       <small>
                         {
                           themeModes.find((option) => option.value === mode)
@@ -382,38 +377,32 @@ export default function SettingsPage() {
                         }
                       </small>
                     </div>
-                    {mode === "custom" && (
-                      <div className="form-field">
-                        <label htmlFor="theme-family">Color family</label>
-                        <select
-                          id="theme-family"
-                          className="appearance-select sanui-select"
-                          value={family}
-                          onChange={(event) =>
-                            setFamily(event.target.value as ThemeFamily)
-                          }
-                        >
-                          <option value="green">Green · SanUI</option>
-                          <option value="blue">Blue · SanUI</option>
-                        </select>
-                        <small>
-                          Updates buttons, links, focus rings, and selection
-                          accents across the app.
-                        </small>
-                      </div>
-                    )}
+                    <div className="form-field">
+                      <label htmlFor="theme-family">SanUI color family</label>
+                      <SelectControl
+                        id="theme-family"
+                        className="appearance-select sanui-select"
+                        value={family}
+                        onChange={(event) =>
+                          setFamily(event.target.value as ThemeFamily)
+                        }
+                      >
+                        <option value="green">Green · SanUI</option>
+                        <option value="blue">Blue · SanUI</option>
+                      </SelectControl>
+                      <small>
+                        Applies the selected SanUI brand palette across every screen, while keeping your light, dark, or system appearance.
+                      </small>
+                    </div>
                   </div>
                   <div
                     className="appearance-preview"
-                    aria-label={`${mode === "custom" ? family : mode} theme preview`}
+                    aria-label={`${family} color family with ${mode} appearance preview`}
                   >
                     <div className="appearance-preview__heading">
                       <span>Live preview</span>
                       <span className="appearance-preview__badge">
-                        {mode === "custom"
-                          ? `${family} family`
-                          : themeModes.find((option) => option.value === mode)
-                              ?.label}
+                        {`${family} family · ${themeModes.find((option) => option.value === mode)?.label}`}
                       </span>
                     </div>
                     <div className="appearance-preview__sample">
@@ -459,7 +448,7 @@ export default function SettingsPage() {
                   <p role="status">{inviteMessage}</p>
                   <label htmlFor="invite-url">Invitation link</label>
                   <div className="invite-link-row">
-                    <input id="invite-url" readOnly value={inviteUrl} onFocus={event => event.currentTarget.select()} />
+                    <Input id="invite-url" readOnly value={inviteUrl} onFocus={event => event.currentTarget.select()} />
                     <Button type="button" onClick={() => void navigator.clipboard.writeText(inviteUrl).then(() => setInviteMessage("Invitation link copied. Share it with your teammate."), () => setInviteMessage("Copy the selected link using your browser’s copy command."))}>Copy link</Button>
                   </div>
                   <small>Email delivery isn’t configured, so share this link directly. It expires in seven days.</small>
@@ -469,14 +458,14 @@ export default function SettingsPage() {
                   <p>Choose a role with only the access this teammate needs.</p>
                   <div className="form-field">
                     <label htmlFor="invite-email">Work email</label>
-                    <input id="invite-email" type="email" autoComplete="email" placeholder="teammate@company.com" {...inviteForm.register("email")} />
+                    <Input id="invite-email" type="email" autoComplete="email" placeholder="teammate@company.com" {...inviteForm.register("email")} />
                     {inviteForm.formState.errors.email && <small className="form-error">{inviteForm.formState.errors.email.message}</small>}
                   </div>
                   <div className="form-field">
                     <label htmlFor="invite-role">Workspace role</label>
-                    <select id="invite-role" className="appearance-select" {...inviteForm.register("role")}>
+                    <SelectControl id="invite-role" className="appearance-select" {...inviteForm.register("role")}>
                       {membersQuery.data?.roleOptions.filter(option => option.assignable).map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
-                    </select>
+                    </SelectControl>
                   </div>
                   {inviteMessage && <p className="form-error" role="alert">{inviteMessage}</p>}
                   <footer className="invite-dialog__actions">

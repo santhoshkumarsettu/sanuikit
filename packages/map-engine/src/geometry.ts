@@ -1,6 +1,7 @@
 import type { Point, UnitGeometry } from '@vstudio/types'
 
 export interface ViewBox { x: number; y: number; width: number; height: number }
+type Viewport = Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>
 
 /** Keep pointer-derived geometry inside the uploaded layout's coordinate space. */
 export function clampPointToLayout(point: Point, width: number, height: number): Point {
@@ -10,7 +11,20 @@ export function clampPointToLayout(point: Point, width: number, height: number):
   }
 }
 
-export function screenToWorld(clientX: number, clientY: number, rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>, viewBox: ViewBox): Point {
+/** The area occupied by an SVG viewBox using xMidYMid meet. */
+export function fittedViewport(rect: Viewport, viewBox: ViewBox): Viewport {
+  const scale = Math.min(rect.width / viewBox.width, rect.height / viewBox.height)
+  const width = viewBox.width * scale
+  const height = viewBox.height * scale
+  return {
+    left: rect.left + (rect.width - width) / 2,
+    top: rect.top + (rect.height - height) / 2,
+    width,
+    height,
+  }
+}
+
+export function screenToWorld(clientX: number, clientY: number, rect: Viewport, viewBox: ViewBox): Point {
   return { x: viewBox.x + (clientX - rect.left) * viewBox.width / rect.width, y: viewBox.y + (clientY - rect.top) * viewBox.height / rect.height }
 }
 
@@ -20,6 +34,25 @@ export function geometryBounds(geometry: UnitGeometry): ViewBox {
   const ys = geometry.points.map(point => point.y)
   const minX = Math.min(...xs); const minY = Math.min(...ys)
   return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY }
+}
+
+/** Keep the user's zoom unless the selected bounds need more space. */
+export function revealBounds(viewBox: ViewBox, bounds: ViewBox): ViewBox {
+  if (
+    bounds.x >= viewBox.x && bounds.y >= viewBox.y &&
+    bounds.x + bounds.width <= viewBox.x + viewBox.width &&
+    bounds.y + bounds.height <= viewBox.y + viewBox.height
+  ) return viewBox
+
+  const scale = Math.max(1, bounds.width * 1.15 / viewBox.width, bounds.height * 1.15 / viewBox.height)
+  const width = viewBox.width * scale
+  const height = viewBox.height * scale
+  return {
+    x: bounds.x + (bounds.width - width) / 2,
+    y: bounds.y + (bounds.height - height) / 2,
+    width,
+    height,
+  }
 }
 
 /** Translate a whole shape without allowing any part of it to leave the layout. */

@@ -192,6 +192,7 @@ model Project {
   status         ProjectStatus @default(DRAFT)
   publicEnabled  Boolean      @default(false) @map("public_enabled")
   publicConfig   Json         @default("{}") @map("public_config")
+  logoAssetKey   String?      @map("logo_asset_key") @db.VarChar(1024)
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

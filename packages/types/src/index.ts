@@ -119,6 +119,7 @@ export interface PropertyProject {
   description?: string;
   projectType: ProjectType;
   location?: string;
+  logoUrl?: string;
   status: ProjectStatus;
   publicEnabled?: boolean;
   publicConfig?: PublicMapConfig;

@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { vstudioApi } from "@vstudio/api-client";
-import { Button } from "sanui";
+import { Button, Input } from "sanui";
 import { useState } from "react";
 import { AuthStory } from "../../components/auth-story";
 
@@ -45,12 +45,12 @@ export default function LoginPage() {
           <form className="auth-form" onSubmit={form.handleSubmit(submit)}>
             <div className="form-field">
               <label htmlFor="email">Work email</label>
-              <input id="email" type="email" autoComplete="email" {...form.register("email")} />
+              <Input id="email" type="email" autoComplete="email" {...form.register("email")} />
               {form.formState.errors.email && <small className="form-error">{form.formState.errors.email.message}</small>}
             </div>
             <div className="form-field">
               <label htmlFor="password">Password</label>
-              <input id="password" type="password" autoComplete="current-password" {...form.register("password")} />
+              <Input id="password" type="password" autoComplete="current-password" {...form.register("password")} />
               {form.formState.errors.password && <small className="form-error">{form.formState.errors.password.message}</small>}
             </div>
             {serverError && <p className="form-error" role="alert">{serverError}</p>}

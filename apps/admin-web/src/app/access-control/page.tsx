@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { vstudioApi } from "@vstudio/api-client";
-import { Badge, Button } from "sanui";
+import { Badge, Button, Input, TextAreaControl } from "sanui";
 import { AppShell } from "../../components/app-shell";
 
 export default function AccessControlPage() {
@@ -132,7 +132,7 @@ export default function AccessControlPage() {
                               const checked = draft.includes(permission.id);
                               return (
                                 <label className={`permission-row${checked ? " is-granted" : ""}`} key={permission.id}>
-                                  <input type="checkbox" checked={checked} disabled={!role.editable || !canManage || updateMutation.isPending} onChange={event => togglePermission(permission.id, event.target.checked)} />
+                                  <Input type="checkbox" checked={checked} disabled={!role.editable || !canManage || updateMutation.isPending} onChange={event => togglePermission(permission.id, event.target.checked)} />
                                   <span className="permission-row__copy"><strong>{permission.label}</strong><small>{permission.description}</small></span>
                                   <span className="permission-row__state">{checked ? "Allowed" : "No access"}</span>
                                 </label>
@@ -200,11 +200,11 @@ export default function AccessControlPage() {
               <p>Give this role a clear name. You’ll choose its permissions in the role editor next.</p>
               <div className="form-field">
                 <label htmlFor="new-role-name">Role name</label>
-                <input id="new-role-name" autoFocus required minLength={2} maxLength={80} value={newRoleName} onChange={event => setNewRoleName(event.target.value)} placeholder="e.g. Property Manager" />
+                <Input id="new-role-name" autoFocus required minLength={2} maxLength={80} value={newRoleName} onChange={event => setNewRoleName(event.target.value)} placeholder="e.g. Property Manager" />
               </div>
               <div className="form-field">
                 <label htmlFor="new-role-description">Description <span>(optional)</span></label>
-                <textarea id="new-role-description" maxLength={240} rows={3} value={newRoleDescription} onChange={event => setNewRoleDescription(event.target.value)} placeholder="Describe what this role is responsible for." />
+                <TextAreaControl id="new-role-description" maxLength={240} rows={3} value={newRoleDescription} onChange={event => setNewRoleDescription(event.target.value)} placeholder="Describe what this role is responsible for." />
               </div>
               {createRoleMutation.error && <p className="form-error" role="alert">{createRoleMutation.error instanceof Error ? createRoleMutation.error.message : "The role could not be created."}</p>}
               <footer className="invite-dialog__actions">

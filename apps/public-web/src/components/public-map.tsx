@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { vstudioApi, type PublicInventoryUnit } from "@vstudio/api-client";
@@ -9,11 +17,55 @@ import {
   UNIT_CATEGORY_PRESENTATION,
   UNIT_PURPOSE_PRESENTATION,
   UNIT_STATUS_PRESENTATION,
+  type AreaUnit,
   type UnitCategory,
   type UnitStatus,
 } from "@vstudio/types";
 import { formatArea, formatCurrency, getUnitTypeLabel } from "@vstudio/utils";
-import { Badge, Button } from "sanui";
+import { Badge, Button, ThemeSwitcher } from "sanui";
+import { usePublicAppearance } from "./providers";
+
+const projectTabs = [
+  { id: "site-plan", label: "Site Plan" },
+  { id: "media", label: "Media" },
+  { id: "about", label: "About" },
+] as const;
+
+type ProjectTab = (typeof projectTabs)[number]["id"];
+type StatusFilter = "ALL" | "AMENITIES" | UnitStatus;
+type UnitSort = "number" | "price-asc" | "price-desc" | "area-asc" | "area-desc";
+
+const unitNumbers = new Intl.Collator("en-IN", { numeric: true, sensitivity: "base" });
+const squareMetersPerUnit: Record<AreaUnit, number> = {
+  SQFT: 0.09290304,
+  SQM: 1,
+  ACRE: 4046.8564224,
+  HECTARE: 10_000,
+};
+
+function compareMeasurements(left: number | null, right: number | null, descending: boolean) {
+  if (left === null) return right === null ? 0 : 1;
+  if (right === null) return -1;
+  return descending ? right - left : left - right;
+}
+
+function compareUnits(left: PublicInventoryUnit, right: PublicInventoryUnit, sort: UnitSort) {
+  const byNumber = unitNumbers.compare(left.unitNumber, right.unitNumber);
+  if (sort === "price-asc" || sort === "price-desc") {
+    const leftPrice = left.price || null;
+    const rightPrice = right.price || null;
+    // Group displayed prices by currency before comparing their amounts.
+    if (leftPrice !== null && rightPrice !== null && left.currency !== right.currency)
+      return left.currency.localeCompare(right.currency);
+    return compareMeasurements(leftPrice, rightPrice, sort === "price-desc") || byNumber;
+  }
+  if (sort === "area-asc" || sort === "area-desc") {
+    const leftArea = left.area === null ? null : left.area * squareMetersPerUnit[left.areaUnit];
+    const rightArea = right.area === null ? null : right.area * squareMetersPerUnit[right.areaUnit];
+    return compareMeasurements(leftArea, rightArea, sort === "area-desc") || byNumber;
+  }
+  return byNumber;
+}
 
 export function PublicMap({
   slug,
@@ -22,14 +74,20 @@ export function PublicMap({
   slug: string;
   embedded?: boolean;
 }) {
+  const { family, setFamily } = usePublicAppearance();
+  const [activeTab, setActiveTab] = useState<ProjectTab>("site-plan");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "AMENITIES" | UnitStatus>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [categoryFilter, setCategoryFilter] = useState<"ALL" | UnitCategory>("ALL");
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [unitSort, setUnitSort] = useState<UnitSort>("number");
   const [selectedLayoutId, setSelectedLayoutId] = useState<string>();
   const [selectedId, setSelectedId] = useState<string>();
+  const [revealShape, setRevealShape] = useState<{ id: string }>();
   const [hoveredId, setHoveredId] = useState<string>();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenError, setFullscreenError] = useState("");
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string>();
   const [enquiryOpen, setEnquiryOpen] = useState(false);
   const [enquiryPrepared, setEnquiryPrepared] = useState(false);
   const [customerName, setCustomerName] = useState("");
@@ -41,6 +99,19 @@ export function PublicMap({
   const [message, setMessage] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const mapCardRef = useRef<HTMLElement>(null);
+  const finderHeadingRef = useRef<HTMLHeadingElement>(null);
+  const unitListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (embedded) return;
+    const syncTab = () => {
+      const tab = projectTabs.find(({ id }) => `#${id}` === window.location.hash);
+      setActiveTab(tab?.id ?? "site-plan");
+    };
+    syncTab();
+    window.addEventListener("hashchange", syncTab);
+    return () => window.removeEventListener("hashchange", syncTab);
+  }, [embedded, slug]);
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
@@ -62,6 +133,9 @@ export function PublicMap({
     // already-open public map.
     staleTime: 0,
   });
+  useEffect(() => {
+    unitListRef.current?.scrollTo({ top: 0 });
+  }, [query.data, selectedLayoutId, search, statusFilter, categoryFilter, unitSort]);
   const shellClass = embedded ? "embed-shell" : "public-shell";
 
   if (query.isLoading)
@@ -90,10 +164,21 @@ export function PublicMap({
 
   const remote = query.data;
   const project = remote.project;
+  const projectInitials =
+    project.name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((word) => Array.from(word)[0])
+      .join("")
+      .toUpperCase() || "P";
   const allUnits = remote.units as PublicInventoryUnit[];
   const layout =
     remote.layouts.find((item) => item.id === selectedLayoutId) ??
     remote.layouts[0];
+  const publishedImages = remote.layouts.flatMap(({ assetUrl, ...item }) =>
+    assetUrl ? [{ ...item, assetUrl }] : [],
+  );
   const saleUnits = allUnits.filter((unit) => unit.purpose === "SALE");
   const amenityUnits = allUnits.filter((unit) => unit.purpose === "AMENITY");
   const availableCount = saleUnits.filter((unit) => unit.status === "AVAILABLE").length;
@@ -101,11 +186,27 @@ export function PublicMap({
   const layoutUnits = layout
     ? allUnits.filter((unit) => unit.layoutId === layout.id)
     : [];
+  const layoutAmenityCount = layoutUnits.filter((unit) => unit.purpose === "AMENITY").length;
+  const layoutSaleCount = layoutUnits.length - layoutAmenityCount;
+  const layoutCountLabel = [
+    (layoutSaleCount > 0 || !layoutAmenityCount) &&
+    `${layoutSaleCount} ${layoutSaleCount === 1 ? "unit" : "units"}`,
+    layoutAmenityCount > 0 &&
+    `${layoutAmenityCount} ${layoutAmenityCount === 1 ? "amenity" : "amenities"}`,
+  ].filter(Boolean).join(" · ");
   const statusOptions = (
     Object.keys(UNIT_STATUS_PRESENTATION) as UnitStatus[]
   ).filter((status) =>
     layoutUnits.some((unit) => unit.purpose === "SALE" && unit.status === status),
   );
+  const primaryStatuses: StatusFilter[] = [
+    "ALL",
+    ...statusOptions.filter((status) => status === "AVAILABLE" || status === "RESERVED"),
+  ];
+  const extraStatuses: StatusFilter[] = [
+    ...statusOptions.filter((status) => status !== "AVAILABLE" && status !== "RESERVED"),
+    "AMENITIES",
+  ];
   const categoryOrder: UnitCategory[] = ["GOLD", "PLATINUM", "SILVER", "REGULAR"];
   const categoryOptions = categoryOrder.filter((category) =>
     layoutUnits.some(
@@ -113,14 +214,14 @@ export function PublicMap({
         unit.purpose === "SALE" && unit.publicMetadata?.category === category,
     ),
   );
-  const countForStatusFilter = (filter: "ALL" | "AMENITIES" | UnitStatus) =>
+  const countForStatusFilter = (filter: StatusFilter) =>
     filter === "ALL"
       ? layoutUnits.length
       : filter === "AMENITIES"
-        ? layoutUnits.filter((unit) => unit.purpose === "AMENITY").length
+        ? layoutAmenityCount
         : layoutUnits.filter(
-            (unit) => unit.purpose === "SALE" && unit.status === filter,
-          ).length;
+          (unit) => unit.purpose === "SALE" && unit.status === filter,
+        ).length;
   const matchingUnits = layoutUnits.filter((unit) =>
     `${unit.unitNumber} ${getUnitTypeLabel(unit.unitType, unit.publicMetadata)}`
       .toLowerCase()
@@ -138,13 +239,16 @@ export function PublicMap({
         unit.publicMetadata?.category === categoryFilter);
     return statusMatches && categoryMatches;
   });
+  const sortedUnits = [...visibleUnits].sort((left, right) => compareUnits(left, right, unitSort));
+  const canSortByPrice = layoutUnits.some((unit) => (unit.price ?? 0) > 0);
+  const canSortByArea = layoutUnits.some((unit) => unit.area !== null);
   const hasActiveMapFilter =
     statusFilter !== "ALL" || categoryFilter !== "ALL" || Boolean(search.trim());
   const hasVisibleAmenities = visibleUnits.some(
     (unit) => unit.purpose === "AMENITY",
   );
   const visibleUnitIds = new Set(visibleUnits.map((unit) => unit.id));
-  const activeFilterLabels = [
+  const activeFilterLabel = [
     statusFilter === "ALL"
       ? undefined
       : statusFilter === "AMENITIES"
@@ -154,7 +258,7 @@ export function PublicMap({
       ? undefined
       : UNIT_CATEGORY_PRESENTATION[categoryFilter].label,
     search.trim() ? `“${search.trim()}”` : undefined,
-  ].filter((label): label is string => Boolean(label));
+  ].filter(Boolean).join(" · ");
   const selected = allUnits.find((unit) => unit.id === selectedId);
   const hovered = allUnits.find((unit) => unit.id === hoveredId);
   // A click pins a unit preview. Hover previews take over again only after it is closed.
@@ -187,76 +291,74 @@ export function PublicMap({
     unit.price == null || unit.price === 0
       ? "Price on request"
       : formatCurrency(unit.price, unit.currency);
-  const contactEmail =
-    typeof project.publicConfig?.contactEmail === "string"
-      ? project.publicConfig.contactEmail
-      : "sales@example.com";
-  const contactPhone =
-    typeof project.publicConfig?.contactPhone === "string"
-      ? project.publicConfig.contactPhone
-      : "";
+  const contactEmail = project.publicConfig?.contactEmail?.trim();
+  const contactPhone = project.publicConfig?.contactPhone?.replace(/[^\d+]/g, "");
   const allowEnquiries = project.publicConfig?.allowEnquiries !== false;
+  const salesHref = contactEmail
+    ? `mailto:${contactEmail}?subject=${encodeURIComponent(`Enquiry about ${project.name}`)}`
+    : contactPhone ? `tel:${contactPhone}` : undefined;
   const additionalDetails = activeUnit
     ? Object.entries(activeUnit.publicMetadata ?? {})
-        .filter(
-          ([key, value]) =>
-            key !== "customTypeName" &&
-            key !== "description" &&
-            key !== "category" &&
-            key !== "features" &&
-            key !== "customAttributes" &&
-            ["string", "number", "boolean"].includes(typeof value),
-        )
-        .slice(0, 8)
-        .map(([key, value]) => {
-          const labels: Record<string, string> = {
-            block: "Block / tower / zone",
-            floor: "Floor / level",
-            facing: "Facing / orientation",
-            bedrooms: "Bedrooms",
-            bathrooms: "Bathrooms",
-            parkingSpaces: "Parking spaces",
-            parkingType: "Parking type",
-            parkingCovered: "Parking coverage",
-            roadWidth: "Road width",
-          };
-          const enumLabels: Record<string, string> = {
-            CAR: "Car",
-            TWO_WHEELER: "Two-wheeler",
-            EV: "Electric vehicle",
-            VISITOR: "Visitor",
-            OTHER: "Other",
-          };
-          if (key === "parkingType" && typeof value === "string")
-            value = enumLabels[value] ?? value;
-          if (key === "facing" && typeof value === "string")
-            value = `${value[0]}${value.slice(1).toLowerCase()}`;
-          if (key === "parkingCovered" && typeof value === "boolean")
-            value = value ? "Covered" : "Uncovered";
-          if (key === "roadWidth") {
-            const unit = activeUnit.publicMetadata?.roadWidthUnit === "M" ? "m" : "ft";
-            value = `${value} ${unit}`;
-          }
-          return [labels[key] ?? key, value] as const;
-        })
+      .filter(
+        ([key, value]) =>
+          key !== "customTypeName" &&
+          key !== "description" &&
+          key !== "category" &&
+          key !== "features" &&
+          key !== "customAttributes" &&
+          ["string", "number", "boolean"].includes(typeof value),
+      )
+      .slice(0, 8)
+      .map(([key, value]) => {
+        const labels: Record<string, string> = {
+          block: "Block / tower / zone",
+          floor: "Floor / level",
+          facing: "Facing / orientation",
+          bedrooms: "Bedrooms",
+          bathrooms: "Bathrooms",
+          parkingSpaces: "Parking spaces",
+          parkingType: "Parking type",
+          parkingCovered: "Parking coverage",
+          roadWidth: "Road width",
+        };
+        const enumLabels: Record<string, string> = {
+          CAR: "Car",
+          TWO_WHEELER: "Two-wheeler",
+          EV: "Electric vehicle",
+          VISITOR: "Visitor",
+          OTHER: "Other",
+        };
+        if (key === "parkingType" && typeof value === "string")
+          value = enumLabels[value] ?? value;
+        if (key === "facing" && typeof value === "string")
+          value = `${value[0]}${value.slice(1).toLowerCase()}`;
+        if (key === "parkingCovered" && typeof value === "boolean")
+          value = value ? "Covered" : "Uncovered";
+        if (key === "roadWidth") {
+          const unit = activeUnit.publicMetadata?.roadWidthUnit === "M" ? "m" : "ft";
+          value = `${value} ${unit}`;
+        }
+        return [labels[key] ?? key, value] as const;
+      })
     : [];
   const publicFeatures = Array.isArray(activeUnit?.publicMetadata?.features)
     ? activeUnit.publicMetadata.features
-        .filter((value): value is string => typeof value === "string")
-        .slice(0, 12)
+      .filter((value): value is string => typeof value === "string")
+      .slice(0, 12)
     : [];
   const publicCustomAttributes = Array.isArray(
     activeUnit?.publicMetadata?.customAttributes,
   )
     ? activeUnit.publicMetadata.customAttributes
-        .filter(
-          (attribute) =>
-            typeof attribute?.label === "string" &&
-            typeof attribute?.value === "string",
-        )
-        .slice(0, 8)
+      .filter(
+        (attribute) =>
+          typeof attribute?.label === "string" &&
+          typeof attribute?.value === "string",
+      )
+      .slice(0, 8)
     : [];
   const startEnquiry = () => {
+    if (!allowEnquiries || !contactEmail) return;
     if (activeUnit) setSelectedId(activeUnit.id);
     setHoveredId(undefined);
     setEnquiryPrepared(false);
@@ -265,7 +367,7 @@ export function PublicMap({
   const closeEnquiry = () => setEnquiryOpen(false);
   const submitEnquiry = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!selected || selected.purpose === "AMENITY") return;
+    if (!selected || selected.purpose === "AMENITY" || !allowEnquiries || !contactEmail) return;
     const body = [
       `Hello, I’m interested in ${project.name}, unit ${selected.unitNumber}.`,
       "",
@@ -295,6 +397,91 @@ export function PublicMap({
     } catch {
       setFullscreenError("Fullscreen is not available in this browser.");
     }
+  };
+  const goToFinder = () => {
+    const heading = finderHeadingRef.current;
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView({ block: "start" });
+  };
+  const selectFromMap = (id?: string) => {
+    setSelectedId(id);
+    setHoveredId(undefined);
+    if (!id || isFullscreen) return;
+
+    const list = unitListRef.current;
+    const card = list?.querySelector<HTMLButtonElement>(`[data-unit-id="${CSS.escape(id)}"]`);
+    if (!list || !card) return;
+    const listBounds = list.getBoundingClientRect();
+    const cardBounds = card.getBoundingClientRect();
+    if (cardBounds.top < listBounds.top)
+      list.scrollTop += cardBounds.top - listBounds.top - 3;
+    else if (cardBounds.bottom > listBounds.bottom)
+      list.scrollTop += cardBounds.bottom - listBounds.bottom + 3;
+  };
+  const selectFromFinder = (id: string) => {
+    setSelectedId(id);
+    setHoveredId(undefined);
+    setRevealShape({ id });
+
+    const canvas = mapCardRef.current?.querySelector<SVGSVGElement>(".vstudio-map__svg");
+    const bounds = canvas?.getBoundingClientRect();
+    if (bounds && (bounds.bottom <= 0 || bounds.top >= window.innerHeight)) {
+      canvas?.focus({ preventScroll: true });
+      canvas?.scrollIntoView({ block: "start" });
+    }
+  };
+  const renderStatusFilter = (filter: StatusFilter) => {
+    const isActive = statusFilter === filter && (filter !== "ALL" || categoryFilter === "ALL");
+    const presentation = filter === "ALL"
+      ? undefined
+      : filter === "AMENITIES"
+        ? UNIT_PURPOSE_PRESENTATION.AMENITY
+        : UNIT_STATUS_PRESENTATION[filter];
+    const filterStyle = presentation && {
+      "--public-filter-fill": presentation.fill,
+      "--public-filter-border": filter === "AMENITIES"
+        ? UNIT_PURPOSE_PRESENTATION.AMENITY.stroke : presentation.text,
+      "--public-filter-ink": presentation.text,
+    } as CSSProperties;
+    return (
+      <button
+        type="button"
+        key={filter}
+        aria-pressed={isActive}
+        className={`public-filter${filter === "AMENITIES" ? " public-filter--amenity" : ""}${isActive ? " is-active" : ""}`}
+        style={filterStyle}
+        onClick={() => {
+          setStatusFilter(filter);
+          if (filter === "ALL" || filter === "AMENITIES") setCategoryFilter("ALL");
+          setHoveredId(undefined);
+          if (
+            selected &&
+            filter !== "ALL" &&
+            (filter === "AMENITIES"
+              ? selected.purpose !== "AMENITY"
+              : selected.purpose !== "SALE" ||
+              selected.status !== filter ||
+              (categoryFilter !== "ALL" &&
+                selected.publicMetadata?.category !== categoryFilter))
+          )
+            setSelectedId(undefined);
+        }}
+      >
+        {presentation && (
+          <i
+            aria-hidden="true"
+            style={{
+              backgroundColor: filter === "AMENITIES"
+                ? UNIT_PURPOSE_PRESENTATION.AMENITY.stroke : presentation.fill
+            }}
+          />
+        )}
+        {filter === "ALL" ? "All" : filter === "AMENITIES" ? "Amenities" : presentation?.label}
+        <span className="public-filter-count">
+          {countForStatusFilter(filter)}
+        </span>
+      </button>
+    );
   };
   const selectionPopover = activeUnit ? (
     <article
@@ -367,7 +554,7 @@ export function PublicMap({
         </div>
         <p className="map-callout-type">
           {activeUnit.purpose === "AMENITY" &&
-          activeUnit.unitNumber.trim().toLowerCase() ===
+            activeUnit.unitNumber.trim().toLowerCase() ===
             getUnitTypeLabel(activeUnit.unitType, activeUnit.publicMetadata)
               .trim()
               .toLowerCase()
@@ -427,9 +614,9 @@ export function PublicMap({
             ))}
           </div>
         )}
-        {activeUnit.purpose === "SALE" && (
+        {activeUnit.purpose === "SALE" && (contactEmail || contactPhone) && (
           <div className="map-callout-actions">
-            {allowEnquiries && (
+            {allowEnquiries && contactEmail && (
               <button
                 type="button"
                 className="map-enquiry-button"
@@ -439,15 +626,13 @@ export function PublicMap({
               </button>
             )}
             <div className="map-contact-links">
-              <a
-                href={`mailto:${contactEmail}?subject=${encodeURIComponent(`Enquiry about ${activeUnit.unitNumber}`)}`}
-              >
-                Email
-              </a>
-              {contactPhone && (
-                <a href={`tel:${contactPhone.replace(/[^\d+]/g, "")}`}>
-                  Call sales
+              {contactEmail && (
+                <a href={`mailto:${contactEmail}?subject=${encodeURIComponent(`Enquiry about ${activeUnit.unitNumber}`)}`}>
+                  Email
                 </a>
+              )}
+              {contactPhone && (
+                <a href={`tel:${contactPhone}`}>Call sales</a>
               )}
             </div>
           </div>
@@ -455,91 +640,189 @@ export function PublicMap({
       </div>
     </article>
   ) : null;
+  const selectProjectTab = (tab: ProjectTab) => {
+    if (tab === activeTab) return;
+    setActiveTab(tab);
+    window.history.replaceState(null, "", `#${tab}`);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
+  const handleProjectTabKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const index = projectTabs.findIndex(({ id }) => id === activeTab);
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowRight":
+        nextIndex = (index + 1) % projectTabs.length;
+        break;
+      case "ArrowLeft":
+        nextIndex = (index + projectTabs.length - 1) % projectTabs.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = projectTabs.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    const nextTab = projectTabs[nextIndex];
+    if (!nextTab) return;
+    event.preventDefault();
+    event.currentTarget
+      .querySelector<HTMLButtonElement>(`#${nextTab.id}-tab`)
+      ?.focus({ preventScroll: true });
+    selectProjectTab(nextTab.id);
+  };
+  const projectLocation = project.location && (
+    <p className="public-project-location">{project.location}</p>
+  );
+  const projectDescription = project.description && (
+    <p className="public-project-description">{project.description}</p>
+  );
+  const availabilitySummary = (
+    <dl className="public-stat-grid" aria-label="Unit availability summary">
+      <div className="public-stat">
+        <dt>
+          <span className="public-stat-dot" aria-hidden="true" />
+          Available
+        </dt>
+        <dd>{availableCount}</dd>
+      </div>
+      <div className="public-stat">
+        <dt>
+          <span className="public-stat-dot reserved" aria-hidden="true" />
+          Reserved
+        </dt>
+        <dd>{reservedCount}</dd>
+      </div>
+      <div className="public-stat">
+        <dt>Sale units</dt>
+        <dd>{saleUnits.length}</dd>
+      </div>
+      <div className="public-stat">
+        <dt>
+          <span className="public-stat-dot amenity" aria-hidden="true" />
+          Amenities
+        </dt>
+        <dd>{amenityUnits.length}</dd>
+      </div>
+    </dl>
+  );
   const content = (
     <>
       <header className="public-header">
-        <Link className="public-logo" href="/">
-          <span>V</span> VStudio
-        </Link>
+        <div className="public-header-left">
+          <Link className="public-logo" href="/">
+            <span>V</span> VStudio
+          </Link>
+          <div className="public-header-project">
+            <span className="public-project-avatar" aria-hidden="true">
+              {project.logoUrl && project.logoUrl !== failedLogoUrl ? (
+                <Image
+                  src={project.logoUrl}
+                  alt=""
+                  width={38}
+                  height={38}
+                  unoptimized
+                  onError={() => setFailedLogoUrl(project.logoUrl)}
+                />
+              ) : projectInitials}
+            </span>
+            <div className="public-header-project-details">
+              <h1 id="public-project-title">{project.name}</h1>
+              {projectLocation}
+            </div>
+          </div>
+          {!embedded && (
+            <div
+              className="public-section-nav"
+              role="tablist"
+              aria-label="Project sections"
+              onKeyDown={handleProjectTabKeyDown}
+            >
+              {projectTabs.map(({ id, label }) => (
+                <button
+                  key={id}
+                  id={`${id}-tab`}
+                  type="button"
+                  role="tab"
+                  aria-selected={id === activeTab}
+                  aria-controls={id}
+                  tabIndex={id === activeTab ? 0 : -1}
+                  onClick={() => selectProjectTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="public-header-right">
           <span className="public-live-indicator">
             <i /> Project availability
           </span>
-          {allowEnquiries && (
+          {!embedded && (
+            <ThemeSwitcher
+              className="public-theme-switcher"
+              value={family}
+              onChange={setFamily}
+            />
+          )}
+          {allowEnquiries && salesHref && (
             <Button
               variant="secondary"
-              onClick={() =>
-                window.location.assign(
-                  `mailto:${contactEmail}?subject=${encodeURIComponent(`Enquiry about ${project.name}`)}`,
-                )
-              }
+              onClick={() => window.location.assign(salesHref)}
             >
               Contact sales
             </Button>
           )}
         </div>
       </header>
-      <section className="public-hero">
-        <div className="public-project-heading">
-          <p className="public-eyebrow">
-            PROPERTY COLLECTION <span>／</span> SITE PLAN
-          </p>
-          <h1>{project.name}</h1>
-          <p className="public-project-location">
-            {project.location || "Explore this property"}
-            {project.description ? (
-              <>
-                <span> · </span>
-                {project.description}
-              </>
-            ) : null}
-          </p>
-        </div>
-        <div
-          className="public-stat-grid"
-          aria-label="Unit availability summary"
+      <div
+        className="public-main-layout"
+        id={embedded ? undefined : "site-plan"}
+        role={embedded ? undefined : "tabpanel"}
+        aria-labelledby={embedded ? undefined : "site-plan-tab"}
+        tabIndex={embedded ? undefined : 0}
+        hidden={!embedded && activeTab !== "site-plan"}
+      >
+        <section
+          id={embedded ? "site-plan" : undefined}
+          ref={mapCardRef}
+          className="public-card public-map"
+          style={layout ? { "--layout-aspect": `${layout.width} / ${layout.height}` } as CSSProperties : undefined}
+          aria-labelledby={
+            isFullscreen
+              ? "public-site-plan-title"
+              : "public-project-title public-site-plan-title"
+          }
         >
-          <div className="public-stat">
-            <span className="public-stat-dot available" />
-            <strong>{availableCount}</strong>
-            <small>Available</small>
-          </div>
-          <div className="public-stat">
-            <span className="public-stat-dot reserved" />
-            <strong>{reservedCount}</strong>
-            <small>Reserved</small>
-          </div>
-          <div className="public-stat public-stat-total">
-            <strong>{saleUnits.length}</strong>
-            <small>Sale units</small>
-          </div>
-          <div className="public-stat public-stat-amenities">
-            <span className="public-stat-dot amenity" />
-            <strong>{amenityUnits.length}</strong>
-            <small>Amenities</small>
-          </div>
-        </div>
-      </section>
-      <div className="public-project-layout">
-        <section ref={mapCardRef} className="public-card public-map">
-          <div className="public-card-head">
-            <div>
-              <span className="public-section-label">
-                INTERACTIVE SITE PLAN
-              </span>
-              <h2>{layout ? `Explore ${layout.name}` : "Explore the layout"}</h2>
-              <p>
-                {hasActiveMapFilter
-                  ? `${visibleUnits.length} ${visibleUnits.length === 1 ? "match" : "matches"} for ${activeFilterLabels.join(" · ")}; other units stay visible in gray.`
-                  : "Select a highlighted unit or amenity to see its details."}
-              </p>
-            </div>
-            <span className="public-count-pill">
-              {hasActiveMapFilter
-                ? `${visibleUnits.length} of ${layoutUnits.length} units`
-                : `${layoutUnits.length} ${layoutUnits.length === 1 ? "unit" : "units"}`}
-            </span>
-          </div>
+          <header className="public-map-header" id={embedded ? "about" : undefined}>
+            <p className="public-map-eyebrow">
+              {isFullscreen ? "Interactive site plan" : (
+                <>Property collection <span aria-hidden="true">/</span> <strong>Site plan</strong></>
+              )}
+            </p>
+            <h2 id="public-site-plan-title">{layout?.name || "Site plan"}</h2>
+            {layout && (
+              <>
+                <div className="public-map-summary">
+                  <span>
+                    {hasActiveMapFilter
+                      ? `${visibleUnits.length} of ${layoutUnits.length} results`
+                      : layoutCountLabel}
+                  </span>
+                  {activeFilterLabel && <small title={activeFilterLabel}>{activeFilterLabel}</small>}
+                </div>
+                <button type="button" className="public-find-unit" onClick={goToFinder}>
+                  Find a unit <span aria-hidden="true">↓</span>
+                </button>
+              </>
+            )}
+            {embedded && projectDescription}
+          </header>
           <div
             className={`public-map-toolbar${remote.layouts.length > 1 ? " has-layout-picker" : ""}`}
           >
@@ -552,10 +835,12 @@ export function PublicMap({
                   onChange={(event) => {
                     setSelectedLayoutId(event.target.value);
                     setSelectedId(undefined);
+                    setRevealShape(undefined);
                     setHoveredId(undefined);
                     setSearch("");
                     setStatusFilter("ALL");
                     setCategoryFilter("ALL");
+                    setUnitSort("number");
                   }}
                 >
                   {remote.layouts.map((item) => (
@@ -566,142 +851,78 @@ export function PublicMap({
                 </select>
               </label>
             )}
-            <div
-              className="public-filter-row"
-              role="group"
-              aria-label="Filter units by availability, category, or amenities"
-            >
-              {(["ALL", ...statusOptions, "AMENITIES"] as Array<
-                "ALL" | "AMENITIES" | UnitStatus
-              >).map((filter) => {
-                const isActive =
-                  filter === "ALL"
-                    ? statusFilter === "ALL" && categoryFilter === "ALL"
-                    : statusFilter === filter;
-                const filterFill =
-                  filter === "AMENITIES"
-                    ? UNIT_PURPOSE_PRESENTATION.AMENITY.fill
-                    : filter === "ALL"
-                      ? undefined
-                      : UNIT_STATUS_PRESENTATION[filter].fill;
-                const filterBorder =
-                  filter === "AMENITIES"
-                    ? UNIT_PURPOSE_PRESENTATION.AMENITY.stroke
-                    : filter === "ALL"
-                      ? undefined
-                      : UNIT_STATUS_PRESENTATION[filter].text;
-                const filterInk =
-                  filter === "AMENITIES"
-                    ? UNIT_PURPOSE_PRESENTATION.AMENITY.text
-                    : filter === "ALL"
-                      ? undefined
-                      : UNIT_STATUS_PRESENTATION[filter].text;
-                const filterStyle =
-                  filterFill && filterBorder && filterInk
-                    ? ({
-                        "--public-filter-fill": filterFill,
-                        "--public-filter-border": filterBorder,
-                        "--public-filter-ink": filterInk,
-                      } as CSSProperties)
-                    : undefined;
-                return (
-                  <button
-                    type="button"
-                    key={filter}
-                    aria-pressed={isActive}
-                    className={`public-filter${filter === "AMENITIES" ? " public-filter--amenity" : ""}${isActive ? " is-active" : ""}`}
-                    style={filterStyle}
-                    onClick={() => {
-                      setStatusFilter(filter === "ALL" ? "ALL" : filter);
-                      if (filter === "ALL") setCategoryFilter("ALL");
-                      if (filter === "AMENITIES") setCategoryFilter("ALL");
-                      setHoveredId(undefined);
-                      if (
-                        selected &&
-                        filter !== "ALL" &&
-                        (filter === "AMENITIES"
-                          ? selected.purpose !== "AMENITY"
-                          : selected.purpose !== "SALE" ||
-                            selected.status !== filter ||
-                            (categoryFilter !== "ALL" &&
-                              selected.publicMetadata?.category !== categoryFilter))
-                      )
-                        setSelectedId(undefined);
-                    }}
-                  >
-                    {filter !== "ALL" && (
-                      <i
-                        aria-hidden="true"
-                        style={{
-                          backgroundColor:
-                            filter === "AMENITIES"
-                              ? UNIT_PURPOSE_PRESENTATION.AMENITY.stroke
-                              : UNIT_STATUS_PRESENTATION[filter].fill,
-                        }}
-                      />
-                    )}
-                    {filter === "ALL"
-                      ? "All"
-                      : filter === "AMENITIES"
-                        ? "Amenities"
-                        : UNIT_STATUS_PRESENTATION[filter].label}
-                    <span className="public-filter-count" aria-hidden="true">
-                      {countForStatusFilter(filter)}
-                    </span>
-                  </button>
-                );
-              })}
-              {categoryOptions.length > 0 && (
-                <>
-                  <span className="public-filter-divider" aria-hidden="true" />
-                  {categoryOptions.map((category) => {
-                    const presentation = UNIT_CATEGORY_PRESENTATION[category];
-                    const isActive = categoryFilter === category;
-                    return (
-                      <button
-                        type="button"
-                        key={category}
-                        aria-pressed={isActive}
-                        className={`public-filter public-filter--category${isActive ? " is-active" : ""}`}
-                        style={{
-                          "--public-filter-fill": presentation.fill,
-                          "--public-filter-border": presentation.text,
-                          "--public-filter-ink": presentation.text,
-                        } as CSSProperties}
-                        onClick={() => {
-                          const nextCategory =
-                            categoryFilter === category ? "ALL" : category;
-                          if (nextCategory !== "ALL" && statusFilter === "AMENITIES")
-                            setStatusFilter("ALL");
-                          setCategoryFilter(nextCategory);
-                          setHoveredId(undefined);
-                          if (
-                            selected &&
-                            nextCategory !== "ALL" &&
-                            selected.publicMetadata?.category !== nextCategory
-                          )
-                            setSelectedId(undefined);
-                        }}
-                      >
-                        <i
-                          aria-hidden="true"
-                          style={{ backgroundColor: presentation.text }}
-                        />
-                        {presentation.label}
-                        <span className="public-filter-count" aria-hidden="true">
-                          {
-                            layoutUnits.filter(
-                              (unit) =>
-                                unit.purpose === "SALE" &&
-                                unit.publicMetadata?.category === category,
-                            ).length
-                          }
-                        </span>
-                      </button>
-                    );
-                  })}
-                </>
-              )}
+            <div className="public-map-filters">
+              <div className="public-filter-row" role="group" aria-label="Unit status filters">
+                {primaryStatuses.map(renderStatusFilter)}
+                <button
+                  type="button"
+                  className="public-filter public-more-filters"
+                  aria-expanded={moreFiltersOpen}
+                  aria-controls="public-extra-filters"
+                  onClick={() => setMoreFiltersOpen((open) => !open)}
+                >
+                  More filters <span aria-hidden="true">{moreFiltersOpen ? "−" : "+"}</span>
+                </button>
+              </div>
+              <div
+                id="public-extra-filters"
+                className="public-filter-row"
+                role="group"
+                aria-label="Additional unit and amenity filters"
+                hidden={!moreFiltersOpen}
+              >
+                {extraStatuses.map(renderStatusFilter)}
+                {categoryOptions.length > 0 && (
+                  <>
+                    {categoryOptions.map((category) => {
+                      const presentation = UNIT_CATEGORY_PRESENTATION[category];
+                      const isActive = categoryFilter === category;
+                      return (
+                        <button
+                          type="button"
+                          key={category}
+                          aria-pressed={isActive}
+                          className={`public-filter public-filter--category${isActive ? " is-active" : ""}`}
+                          style={{
+                            "--public-filter-fill": presentation.fill,
+                            "--public-filter-border": presentation.text,
+                            "--public-filter-ink": presentation.text,
+                          } as CSSProperties}
+                          onClick={() => {
+                            const nextCategory =
+                              categoryFilter === category ? "ALL" : category;
+                            if (nextCategory !== "ALL" && statusFilter === "AMENITIES")
+                              setStatusFilter("ALL");
+                            setCategoryFilter(nextCategory);
+                            setHoveredId(undefined);
+                            if (
+                              selected &&
+                              nextCategory !== "ALL" &&
+                              selected.publicMetadata?.category !== nextCategory
+                            )
+                              setSelectedId(undefined);
+                          }}
+                        >
+                          <i
+                            aria-hidden="true"
+                            style={{ backgroundColor: presentation.text }}
+                          />
+                          {presentation.label}
+                          <span className="public-filter-count" aria-hidden="true">
+                            {
+                              layoutUnits.filter(
+                                (unit) =>
+                                  unit.purpose === "SALE" &&
+                                  unit.publicMetadata?.category === category,
+                              ).length
+                            }
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
             </div>
             {fullscreenError && (
               <small className="public-fullscreen-error" role="status">
@@ -712,19 +933,22 @@ export function PublicMap({
           {layout ? (
             <>
               <InteractiveMap
+                key={layout.id}
                 width={layout.width}
                 height={layout.height}
                 backgroundUrl={layout.assetUrl}
                 shapes={shapes}
                 selectedId={hoveredId ?? selectedId}
+                revealShape={revealShape}
+                preserveAspectRatio
+                fitOnFullscreenChange
+                allowPageScroll
+                touchHint="Tap a plot or amenity for details. Use + and − to zoom."
                 selectionPopover={selectionPopover}
                 tool="select"
                 isFullscreen={isFullscreen}
                 onFullscreenToggle={() => void toggleFullscreen()}
-                onSelect={(id) => {
-                  setSelectedId(id);
-                  setHoveredId(undefined);
-                }}
+                onSelect={selectFromMap}
                 onHover={(id) => {
                   // Once a plot is clicked, ignore hover changes until the pin is cleared.
                   if (!selectedId) setHoveredId(id);
@@ -758,19 +982,23 @@ export function PublicMap({
             </div>
           )}
         </section>
-        <aside className="public-card public-inventory">
+        <section className="public-card public-inventory" aria-labelledby="public-inventory-title">
           <header className="public-card-head">
             <div>
               <span className="public-section-label">FIND YOUR PROPERTY</span>
-              <h2>Units &amp; amenities</h2>
+              <div className="public-inventory-title">
+                <h2 id="public-inventory-title" ref={finderHeadingRef} tabIndex={-1}>
+                  Units &amp; amenities
+                </h2>
+                <span className="public-inventory-count" aria-live="polite">
+                  {visibleUnits.length} {visibleUnits.length === 1 ? "result" : "results"}
+                </span>
+              </div>
             </div>
-            <span className="public-count-pill">{visibleUnits.length}</span>
           </header>
           <div className="public-details">
             <label className="public-search-wrap">
-              <span className="public-search-icon" aria-hidden="true">
-                ⌕
-              </span>
+              <span className="public-search-icon" aria-hidden="true" />
               <input
                 className="public-search"
                 value={search}
@@ -802,18 +1030,32 @@ export function PublicMap({
                 </button>
               )}
             </label>
-            {visibleUnits.length ? (
-              <div className="public-unit-list">
-                {visibleUnits.map((unit) => (
+            <label className="public-unit-sort">
+              <span>Sort by</span>
+              <select value={unitSort} onChange={(event) => setUnitSort(event.target.value as UnitSort)}>
+                <option value="number">Unit number</option>
+                <option value="price-asc" disabled={!canSortByPrice}>Price (low to high)</option>
+                <option value="price-desc" disabled={!canSortByPrice}>Price (high to low)</option>
+                <option value="area-asc" disabled={!canSortByArea}>Area (small to large)</option>
+                <option value="area-desc" disabled={!canSortByArea}>Area (large to small)</option>
+              </select>
+            </label>
+            {sortedUnits.length ? (
+              <div
+                ref={unitListRef}
+                className="public-unit-list"
+                role="region"
+                aria-label="Property units and amenities"
+                tabIndex={0}
+              >
+                {sortedUnits.map((unit) => (
                   <button
                     type="button"
                     key={unit.id}
+                    data-unit-id={unit.id}
                     aria-pressed={unit.id === selectedId}
                     className={`public-unit-button${unit.id === selectedId ? " is-active" : ""}${unit.purpose === "AMENITY" ? " is-amenity" : ""}`}
-                    onClick={() => {
-                      setSelectedId(unit.id);
-                      setHoveredId(undefined);
-                    }}
+                    onClick={() => selectFromFinder(unit.id)}
                   >
                     <span className="public-unit-main">
                       <strong>{unit.unitNumber}</strong>
@@ -829,46 +1071,50 @@ export function PublicMap({
                       </small>
                     </span>
                     <span className="public-unit-side">
-                      {unit.purpose === "AMENITY" ? (
-                        <Badge
-                          style={{
-                            backgroundColor: UNIT_PURPOSE_PRESENTATION.AMENITY.fill,
-                            color: UNIT_PURPOSE_PRESENTATION.AMENITY.text,
-                          }}
-                        >
-                          Not for sale
-                        </Badge>
-                      ) : (
-                        <>
-                          {unit.publicMetadata?.category && (
-                            <span
-                              className="public-category-badge"
-                              style={{
-                                backgroundColor:
-                                  UNIT_CATEGORY_PRESENTATION[
-                                    unit.publicMetadata.category
-                                  ].fill,
-                                color:
-                                  UNIT_CATEGORY_PRESENTATION[
-                                    unit.publicMetadata.category
-                                  ].text,
-                              }}
-                            >
-                              {UNIT_CATEGORY_PRESENTATION[
-                                unit.publicMetadata.category
-                              ].label}
-                            </span>
-                          )}
+                      <span className="public-unit-badges">
+                        {unit.purpose === "AMENITY" ? (
                           <Badge
                             style={{
-                              backgroundColor: UNIT_STATUS_PRESENTATION[unit.status].fill,
-                              color: UNIT_STATUS_PRESENTATION[unit.status].text,
+                              backgroundColor: UNIT_PURPOSE_PRESENTATION.AMENITY.fill,
+                              color: UNIT_PURPOSE_PRESENTATION.AMENITY.text,
                             }}
                           >
-                            {UNIT_STATUS_PRESENTATION[unit.status].label}
+                            Not for sale
                           </Badge>
-                          <small>{priceLabel(unit)}</small>
-                        </>
+                        ) : (
+                          <>
+                            {unit.publicMetadata?.category && (
+                              <span
+                                className="public-category-badge"
+                                style={{
+                                  backgroundColor:
+                                    UNIT_CATEGORY_PRESENTATION[
+                                      unit.publicMetadata.category
+                                    ].fill,
+                                  color:
+                                    UNIT_CATEGORY_PRESENTATION[
+                                      unit.publicMetadata.category
+                                    ].text,
+                                }}
+                              >
+                                {UNIT_CATEGORY_PRESENTATION[
+                                  unit.publicMetadata.category
+                                ].label}
+                              </span>
+                            )}
+                            <Badge
+                              style={{
+                                backgroundColor: UNIT_STATUS_PRESENTATION[unit.status].fill,
+                                color: UNIT_STATUS_PRESENTATION[unit.status].text,
+                              }}
+                            >
+                              {UNIT_STATUS_PRESENTATION[unit.status].label}
+                            </Badge>
+                          </>
+                        )}
+                      </span>
+                      {unit.purpose !== "AMENITY" && (
+                        <small>{priceLabel(unit)}</small>
                       )}
                     </span>
                   </button>
@@ -893,14 +1139,73 @@ export function PublicMap({
               </div>
             )}
           </div>
-          <div className="public-contact">
-            <p>Need help choosing a property?</p>
-            <a href={`mailto:${contactEmail}`}>
-              Talk to our sales team <span aria-hidden="true">→</span>
-            </a>
-          </div>
-        </aside>
+          {salesHref && (
+            <div className="public-contact">
+              <a href={salesHref}>
+                Talk to our sales team <span aria-hidden="true">→</span>
+              </a>
+            </div>
+          )}
+        </section>
       </div>
+      {!embedded && (
+        <>
+          <section
+            id="media"
+            className="public-card public-project-media"
+            role="tabpanel"
+            aria-labelledby="media-tab"
+            tabIndex={0}
+            hidden={activeTab !== "media"}
+          >
+            <div className="public-card-head">
+              <h1>Media</h1>
+            </div>
+            {publishedImages.length ? (
+              <ul className="public-media-grid">
+                {publishedImages.map((image) => (
+                  <li key={image.id}>
+                    <a href={image.assetUrl} target="_blank" rel="noreferrer">
+                      <Image
+                        src={image.assetUrl}
+                        alt=""
+                        width={image.width}
+                        height={image.height}
+                        unoptimized
+                      />
+                      <span>{image.name}</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="public-media-empty">No media has been published for this project yet.</p>
+            )}
+          </section>
+          <section
+            id="about"
+            className="public-card public-hero public-project-about"
+            role="tabpanel"
+            aria-labelledby="about-tab"
+            tabIndex={0}
+            hidden={activeTab !== "about"}
+          >
+            <div className="public-project-heading">
+              <h1>About {project.name}</h1>
+              {projectLocation}
+              {projectDescription}
+              {allowEnquiries && salesHref && (
+                <div className="public-about-sales" aria-label="Sales contact">
+                  {contactEmail && <a href={salesHref}>Email sales</a>}
+                  {contactPhone && <a href={`tel:${contactPhone}`}>Call sales</a>}
+                </div>
+              )}
+            </div>
+            {availabilitySummary}
+          </section>
+        </>
+      )}
       <dialog
         ref={dialogRef}
         className="public-enquiry-dialog"
@@ -918,7 +1223,7 @@ export function PublicMap({
         >
           ×
         </button>
-        {selected &&
+        {selected && contactEmail &&
           (enquiryPrepared ? (
             <div className="enquiry-confirmation">
               <span className="enquiry-confirmation-icon">✓</span>
@@ -1026,7 +1331,7 @@ export function PublicMap({
       </dialog>
       <footer className="public-footer">
         <span>Presented by VStudio</span>
-        <span>Availability may change. Contact sales to confirm.</span>
+        <span>{salesHref ? "Availability may change. Contact sales to confirm." : "Availability may change."}</span>
       </footer>
     </>
   );

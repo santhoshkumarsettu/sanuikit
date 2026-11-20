@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type ThemeMode = "system" | "light" | "dark" | "custom";
+export type ThemeMode = "system" | "light" | "dark";
 export type ThemeFamily = "green" | "blue";
 
 type Appearance = {
@@ -31,8 +31,7 @@ function isThemeMode(value: unknown): value is ThemeMode {
   return (
     value === "system" ||
     value === "light" ||
-    value === "dark" ||
-    value === "custom"
+    value === "dark"
   );
 }
 
@@ -66,10 +65,9 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
             : DEFAULT_APPEARANCE.mode;
           const restored = {
             mode,
-            family:
-              mode === "custom" && isThemeFamily(value.family)
-                ? value.family
-                : DEFAULT_APPEARANCE.family,
+            family: isThemeFamily(value.family)
+              ? value.family
+              : DEFAULT_APPEARANCE.family,
           };
           setAppearance(restored);
           applyAppearance(restored);
@@ -95,11 +93,7 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
 
   const setMode = useCallback(
     (mode: ThemeMode) => {
-      updateAppearance({
-        mode,
-        family:
-          mode === "custom" ? appearance.family : DEFAULT_APPEARANCE.family,
-      });
+      updateAppearance({ ...appearance, mode });
     },
     [appearance, updateAppearance],
   );

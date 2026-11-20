@@ -5,15 +5,25 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { prisma } from "@vstudio/database/tenant";
 import { withTenant } from "@vstudio/database/tenant";
 import { s3, storageBucket } from "../layouts/storage.js";
+import { projectLogoUrl } from "../projects/logo.js";
+import { lockProject, publicConfigObject } from "../projects/project-config.js";
 
-const publicConfigSchema = z.object({
+const publicConfigPatchSchema = z.object({
+  showPrice: z.boolean(),
+  showArea: z.boolean(),
+  showUnitType: z.boolean(),
+  allowEnquiries: z.boolean(),
+  showSoldUnits: z.boolean(),
+  contactEmail: z.string().email().max(320),
+  contactPhone: z.string().max(32),
+}).partial();
+
+const publicConfigSchema = publicConfigPatchSchema.extend({
   showPrice: z.boolean().default(true),
   showArea: z.boolean().default(true),
   showUnitType: z.boolean().default(true),
   allowEnquiries: z.boolean().default(true),
   showSoldUnits: z.boolean().default(false),
-  contactEmail: z.string().email().max(320).optional(),
-  contactPhone: z.string().max(32).optional(),
 });
 
 const publicUnitCategories = new Set(["GOLD", "PLATINUM", "SILVER", "REGULAR"]);
@@ -63,6 +73,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         projectType: true,
         location: true,
         publicConfig: true,
+        logoAssetKey: true,
         layouts: {
           orderBy: { createdAt: "asc" },
           select: {
@@ -162,6 +173,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
         description: project.description,
         projectType: project.projectType,
         location: project.location,
+        logoUrl: await projectLogoUrl(project.logoAssetKey, request.log),
         status: "ACTIVE" as const,
         updatedAt: new Date().toISOString(),
         publicConfig: config,
@@ -176,7 +188,7 @@ export async function registerPublicRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.requirePermission("EDIT_PROJECT")] },
     async (request, reply) => {
       const parsed = z
-        .object({ enabled: z.boolean(), config: publicConfigSchema })
+        .object({ enabled: z.boolean().optional(), config: publicConfigPatchSchema })
         .safeParse(request.body);
       if (!parsed.success)
         return reply
@@ -188,36 +200,39 @@ export async function registerPublicRoutes(app: FastifyInstance) {
           });
       const context = request.auth!;
       const { projectId } = request.params as { projectId: string };
-      const updated = await withTenant(context, (tx) =>
-        tx.project.updateMany({
-          where: { id: projectId, organizationId: context.organizationId },
+      if (!z.uuid().safeParse(projectId).success)
+        return reply.code(404).send({ code: "NOT_FOUND", message: "Project not found." });
+      const updated = await withTenant(context, async (tx) => {
+        const current = await lockProject(tx, projectId, context.organizationId);
+        if (!current) return null;
+        const project = await tx.project.update({
+          where: { id: current.id },
           data: {
             publicEnabled: parsed.data.enabled,
-            publicConfig: parsed.data.config,
+            publicConfig: { ...publicConfigObject(current.publicConfig), ...parsed.data.config },
           },
-        }),
-      );
-      if (!updated.count)
-        return reply
-          .code(404)
-          .send({ code: "NOT_FOUND", message: "Project not found." });
-      await withTenant(context, (tx) =>
-        tx.auditLog.create({
+        });
+        await tx.auditLog.create({
           data: {
             organizationId: context.organizationId,
             actorId: context.userId,
             action: "PUBLIC_MAP_SETTINGS_UPDATED",
             entityType: "Project",
             entityId: projectId,
-            after: { enabled: parsed.data.enabled, config: parsed.data.config },
+            after: { enabled: project.publicEnabled, config: parsed.data.config },
             ipAddress: request.ip,
           },
-        }),
-      );
+        });
+        return project;
+      });
+      if (!updated)
+        return reply
+          .code(404)
+          .send({ code: "NOT_FOUND", message: "Project not found." });
       return {
-        enabled: parsed.data.enabled,
-        publicUrl: parsed.data.enabled
-          ? `${process.env.PUBLIC_ORIGIN ?? "http://localhost:3001"}/p/${(await withTenant(context, (tx) => tx.project.findUnique({ where: { id: projectId }, select: { slug: true } })))?.slug}`
+        enabled: updated.publicEnabled,
+        publicUrl: updated.publicEnabled
+          ? `${process.env.PUBLIC_ORIGIN ?? "http://localhost:3001"}/p/${updated.slug}`
           : null,
       };
     },

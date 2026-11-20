@@ -6,9 +6,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { vstudioApi } from "@vstudio/api-client";
 import { UNIT_PURPOSE_PRESENTATION, UNIT_STATUS_PRESENTATION } from "@vstudio/types";
-import { Badge, Button } from "sanui";
+import { Badge, Button, Input, SelectControl, TextAreaControl } from "sanui";
 import { demoProject, formatCurrency, getUnitTypeLabel } from "@vstudio/utils";
 import { AppShell } from "../../../components/app-shell";
+import { ProjectContactFields, ProjectLogo } from "../../../components/project-contact-fields";
 import { usePermissions } from "../../../hooks/use-permissions";
 
 export default function ProjectDetailsPage() {
@@ -37,6 +38,8 @@ export default function ProjectDetailsPage() {
             .replaceAll("-", " ")
             .replace(/\b\w/g, (letter) => letter.toUpperCase()),
         });
+  const savedSalesEmail = project.publicConfig?.contactEmail;
+  const savedSalesMobile = project.publicConfig?.contactPhone;
   const unitsQuery = useQuery({
     queryKey: ["units", projectQuery.data?.id],
     queryFn: () => vstudioApi.units(projectQuery.data!.id),
@@ -98,8 +101,14 @@ export default function ProjectDetailsPage() {
     location: "",
     description: "",
   });
+  const [editContacts, setEditContacts] = useState<{ contactEmail?: string; contactPhone?: string }>({});
+  const [editLogo, setEditLogo] = useState<File | null>();
   const editProject = useMutation({
-    mutationFn: () => vstudioApi.updateProject(project.id, editValues),
+    mutationFn: () => vstudioApi.updateProject(project.id, {
+      ...editValues,
+      ...editContacts,
+      removeLogo: editLogo === null,
+    }, editLogo ?? undefined),
     onSuccess: async (updated) => {
       setEditing(false);
       setMessage("Project details saved.");
@@ -124,22 +133,8 @@ export default function ProjectDetailsPage() {
     mutationFn: (showSoldUnits: boolean) => {
       const current = projectQuery.data;
       if (!current) throw new Error("Project details are still loading.");
-      const currentConfig = current.publicConfig ?? {};
       return vstudioApi.updatePublicSettings(current.id, {
-        enabled: current.publicEnabled ?? false,
-        config: {
-          showPrice: currentConfig.showPrice ?? true,
-          showArea: currentConfig.showArea ?? true,
-          showUnitType: currentConfig.showUnitType ?? true,
-          allowEnquiries: currentConfig.allowEnquiries ?? true,
-          showSoldUnits,
-          ...(currentConfig.contactEmail
-            ? { contactEmail: currentConfig.contactEmail }
-            : {}),
-          ...(currentConfig.contactPhone
-            ? { contactPhone: currentConfig.contactPhone }
-            : {}),
-        },
+        config: { showSoldUnits },
       });
     },
     onSuccess: async (_, showSoldUnits) => {
@@ -227,23 +222,37 @@ export default function ProjectDetailsPage() {
           <p className="page-eyebrow">
             <Link href="/projects">Projects</Link> / Project overview
           </p>
-          <h1 className="page-title">{project.name}</h1>
-          <p className="page-subtitle">
-            {project.location ?? "Project location"} ·{" "}
-            {project.projectType.replaceAll("_", " ").toLowerCase()}
-          </p>
+          <div className="project-overview-identity">
+            {project.logoUrl && <ProjectLogo url={project.logoUrl} className="project-thumb project-title-logo" />}
+            <div>
+              <h1 className="page-title">{project.name}</h1>
+              <p className="page-subtitle">
+                {project.location ?? "Project location"} ·{" "}
+                {project.projectType.replaceAll("_", " ").toLowerCase()}
+              </p>
+            </div>
+          </div>
+          {(savedSalesEmail || savedSalesMobile) && (
+            <div className="project-sales-links" aria-label="Sales contact">
+              {savedSalesEmail && <a href={`mailto:${savedSalesEmail}`}>{savedSalesEmail}</a>}
+              {savedSalesMobile && <a href={`tel:${savedSalesMobile.replace(/[^\d+]/g, "")}`}>{savedSalesMobile}</a>}
+            </div>
+          )}
         </div>
         <div className="title-actions">
           {projectQuery.data && canEditProject && (
             <Button
               variant="secondary"
               onClick={() => {
+                editProject.reset();
                 setEditValues({
                   name: project.name,
                   slug: project.slug,
                   location: project.location ?? "",
                   description: project.description ?? "",
                 });
+                setEditContacts({});
+                setEditLogo(undefined);
                 setEditing((value) => !value);
               }}
             >
@@ -303,7 +312,7 @@ export default function ProjectDetailsPage() {
             <h2>Edit project details</h2>
             <div className="form-field">
               <label htmlFor="edit-project-name">Project name</label>
-              <input
+              <Input
                 id="edit-project-name"
                 required
                 maxLength={120}
@@ -315,7 +324,7 @@ export default function ProjectDetailsPage() {
             </div>
             <div className="form-field">
               <label htmlFor="edit-project-slug">Public URL slug</label>
-              <input
+              <Input
                 id="edit-project-slug"
                 required
                 pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
@@ -330,7 +339,7 @@ export default function ProjectDetailsPage() {
             </div>
             <div className="form-field">
               <label htmlFor="edit-project-location">Location</label>
-              <input
+              <Input
                 id="edit-project-location"
                 value={editValues.location}
                 onChange={(event) =>
@@ -340,7 +349,7 @@ export default function ProjectDetailsPage() {
             </div>
             <div className="form-field">
               <label htmlFor="edit-project-description">Description</label>
-              <textarea
+              <TextAreaControl
                 id="edit-project-description"
                 value={editValues.description}
                 onChange={(event) =>
@@ -351,8 +360,22 @@ export default function ProjectDetailsPage() {
                 }
               />
             </div>
+            <ProjectContactFields
+              email={{
+                value: editContacts.contactEmail ?? savedSalesEmail ?? "",
+                onChange: (event) => setEditContacts((current) => ({ ...current, contactEmail: event.target.value })),
+              }}
+              phone={{
+                value: editContacts.contactPhone ?? savedSalesMobile ?? "",
+                onChange: (event) => setEditContacts((current) => ({ ...current, contactPhone: event.target.value })),
+              }}
+              savedLogoUrl={project.logoUrl}
+              logo={editLogo}
+              onLogoChange={setEditLogo}
+              disabled={editProject.isPending}
+            />
             {editProject.error && (
-              <p className="form-error" role="alert">
+              <p className="form-error project-submit-error" role="alert">
                 {editProject.error.message}
               </p>
             )}
@@ -477,7 +500,7 @@ export default function ProjectDetailsPage() {
           </header>
           <div className="setting-options project-public-settings-options">
             <label className="setting-check">
-              <input
+              <Input
                 type="checkbox"
                 checked={
                   showNonAvailableUnits ??
@@ -681,7 +704,7 @@ export default function ProjectDetailsPage() {
               aria-label="Project inventory pagination"
             >
               <label htmlFor="project-inventory-page-size">Rows per page</label>
-              <select
+              <SelectControl
                 id="project-inventory-page-size"
                 value={activeInventoryPagination.pageSize}
                 onChange={(event) => {
@@ -695,7 +718,7 @@ export default function ProjectDetailsPage() {
                 <option value={12}>12</option>
                 <option value={24}>24</option>
                 <option value={48}>48</option>
-              </select>
+              </SelectControl>
               <Button
                 variant="secondary"
                 size="sm"

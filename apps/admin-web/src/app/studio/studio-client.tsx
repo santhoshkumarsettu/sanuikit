@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { vstudioApi } from "@vstudio/api-client";
 import { ApiError } from "@vstudio/api-client";
-import { Modal, Button } from "sanui";
+import { Input, Modal, Button, SelectControl, TextAreaControl } from "sanui";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -723,7 +723,7 @@ export function MapStudio() {
         <div className="studio-layout-fields">
           <label className="studio-layout-field">
             <span>Project</span>
-            <select
+            <SelectControl
               className="sanui-select filter-select"
               aria-label="Select project for Map Studio"
               value={projectId ?? ""}
@@ -748,14 +748,14 @@ export function MapStudio() {
                   {project.name}
                 </option>
               ))}
-            </select>
+            </SelectControl>
           </label>
           {activeProject && activeProject.layouts.length > 0 && (
             <label className="studio-layout-field">
               <span>
                 Layout <small>{activeProject.layouts.length} total</small>
               </span>
-              <select
+              <SelectControl
                 className="sanui-select filter-select"
                 aria-label="Select layout for Map Studio"
                 value={activeLayout?.id ?? ""}
@@ -777,14 +777,14 @@ export function MapStudio() {
                     </option>
                   );
                 })}
-              </select>
+              </SelectControl>
             </label>
           )}
         </div>
         <div className="studio-layout-actions">
           {activeProject && activeLayout && (
             <>
-              <input
+              <Input
                 ref={replaceFileInputRef}
                 className="sanui-visually-hidden"
                 type="file"
@@ -838,7 +838,7 @@ export function MapStudio() {
             }
           >
             ＋ Add layout
-            <input
+            <Input
               type="file"
               accept="image/png,image/jpeg,image/webp"
               disabled={!isConnected || layoutActionPending}
@@ -1196,7 +1196,7 @@ export function MapStudio() {
                         )}
                         <div className="detail-field">
                           <label>Status</label>
-                          <select
+                          <SelectControl
                             className="sanui-select filter-select status-select"
                             value={selected.status}
                             disabled={!canUpdateStatus}
@@ -1215,7 +1215,7 @@ export function MapStudio() {
                                 </option>
                               ),
                             )}
-                          </select>
+                          </SelectControl>
                           {canCreateBooking &&
                             (selected.status === "AVAILABLE" ||
                             selected.status === "RESERVED") && (
@@ -1648,7 +1648,7 @@ export function MapStudio() {
               <div className="form-grid">
                 <div className="form-field unit-form-wide">
                   <label htmlFor="unitPurpose">Inventory purpose</label>
-                  <select
+                  <SelectControl
                     id="unitPurpose"
                     {...form.register("purpose", {
                       onChange: (event) => {
@@ -1668,7 +1668,7 @@ export function MapStudio() {
                   >
                     <option value="SALE">For sale</option>
                     <option value="AMENITY">Amenity / shared area · not for sale</option>
-                  </select>
+                  </SelectControl>
                   <small className="field-hint">
                     {watchedPurpose === "AMENITY"
                       ? "Amenities stay clickable on the map, but have no sale price, sale status, or booking actions."
@@ -1679,7 +1679,7 @@ export function MapStudio() {
                   <label htmlFor="unitNumber">
                     Unit number <span aria-hidden="true">*</span>
                   </label>
-                  <input
+                  <Input
                     id="unitNumber"
                     {...form.register("unitNumber")}
                     placeholder="e.g. A-104, P-08, ROAD-1"
@@ -1696,7 +1696,7 @@ export function MapStudio() {
                   </label>
                   {watchedPurpose === "AMENITY" ? (
                     <>
-                      <input
+                      <Input
                         id="unitType"
                         type="hidden"
                         defaultValue="CUSTOM"
@@ -1710,7 +1710,7 @@ export function MapStudio() {
                       </small>
                     </>
                   ) : (
-                    <select id="unitType" {...form.register("unitType")}>
+                    <SelectControl id="unitType" {...form.register("unitType")}>
                       <option value="PLOT">Residential plot</option>
                       <option value="APARTMENT">Apartment</option>
                       <option value="VILLA">Villa</option>
@@ -1720,7 +1720,7 @@ export function MapStudio() {
                       <option value="ROOM">Room</option>
                       <option value="WAREHOUSE">Warehouse</option>
                       <option value="CUSTOM">Custom type</option>
-                    </select>
+                    </SelectControl>
                   )}
                 </div>
                 {watchedUnitType === "CUSTOM" && (
@@ -1728,7 +1728,7 @@ export function MapStudio() {
                     <label htmlFor="customTypeName">
                       Custom type name <span aria-hidden="true">*</span>
                     </label>
-                    <input
+                    <Input
                       id="customTypeName"
                       {...form.register("details.customTypeName")}
                       placeholder="e.g. Road, Garden, Clubhouse, Storage"
@@ -1749,13 +1749,13 @@ export function MapStudio() {
                 {watchedPurpose === "SALE" && (
                   <div className="form-field">
                     <label htmlFor="unitCategory">Zone category</label>
-                    <select id="unitCategory" {...form.register("details.category")}>
+                    <SelectControl id="unitCategory" {...form.register("details.category")}>
                       <option value="">Unassigned</option>
                       <option value="GOLD">Gold zone</option>
                       <option value="PLATINUM">Platinum zone</option>
                       <option value="SILVER">Silver zone</option>
                       <option value="REGULAR">Regular zone</option>
-                    </select>
+                    </SelectControl>
                     <small className="field-hint">
                       Use the same category for units in a zone. Zone category and facing appear on the public map; assign a category to multiple units from Inventory.
                     </small>
@@ -1778,7 +1778,7 @@ export function MapStudio() {
                   <label htmlFor="unitArea">
                     Area <span aria-hidden="true">*</span>
                   </label>
-                  <input
+                  <Input
                     id="unitArea"
                     type="number"
                     min="0.001"
@@ -1793,18 +1793,18 @@ export function MapStudio() {
                 </div>
                 <div className="form-field">
                   <label htmlFor="areaUnit">Area unit</label>
-                  <select id="areaUnit" {...form.register("areaUnit")}>
+                  <SelectControl id="areaUnit" {...form.register("areaUnit")}>
                     <option value="SQFT">Square feet (sq ft)</option>
                     <option value="SQM">Square metres (sq m)</option>
                     <option value="ACRE">Acres</option>
                     <option value="HECTARE">Hectares</option>
-                  </select>
+                  </SelectControl>
                 </div>
                 <div className="form-field">
                   <label htmlFor="unitPrice">
                     List price <span aria-hidden="true">*</span>
                   </label>
-                  <input
+                  <Input
                     id="unitPrice"
                     type="number"
                     min="0"
@@ -1823,11 +1823,11 @@ export function MapStudio() {
                 </div>
                 <div className="form-field">
                   <label htmlFor="currency">Currency</label>
-                  <select id="currency" {...form.register("currency")}>
+                  <SelectControl id="currency" {...form.register("currency")}>
                     <option value="INR">INR · ₹</option>
                     <option value="USD">USD · $</option>
                     <option value="EUR">EUR · €</option>
-                  </select>
+                  </SelectControl>
                 </div>
                 </div>
               </section>
@@ -1855,7 +1855,7 @@ export function MapStudio() {
               <div className="form-grid">
                 <div className="form-field">
                   <label htmlFor="unitBlock">Block, tower, or zone</label>
-                  <input
+                  <Input
                     id="unitBlock"
                     {...form.register("details.block")}
                     placeholder="e.g. Tower A, North Zone"
@@ -1863,7 +1863,7 @@ export function MapStudio() {
                 </div>
                 <div className="form-field">
                   <label htmlFor="unitFloor">Floor or level</label>
-                  <input
+                  <Input
                     id="unitFloor"
                     {...form.register("details.floor")}
                     placeholder="e.g. Ground, Level 2, Basement P1"
@@ -1871,7 +1871,7 @@ export function MapStudio() {
                 </div>
                 <div className="form-field">
                   <label htmlFor="unitFacing">Facing / orientation</label>
-                  <select
+                  <SelectControl
                     id="unitFacing"
                     {...form.register("details.facing")}
                   >
@@ -1880,7 +1880,7 @@ export function MapStudio() {
                     <option value="NORTH">North</option>
                     <option value="WEST">West</option>
                     <option value="SOUTH">South</option>
-                  </select>
+                  </SelectControl>
                   <small className="field-hint">
                     Select the direction the unit faces. This appears in the public unit details.
                   </small>
@@ -1889,7 +1889,7 @@ export function MapStudio() {
                   <>
                     <div className="form-field">
                       <label htmlFor="unitBedrooms">Bedrooms</label>
-                      <input
+                      <Input
                         id="unitBedrooms"
                         type="number"
                         min="0"
@@ -1902,7 +1902,7 @@ export function MapStudio() {
                     </div>
                     <div className="form-field">
                       <label htmlFor="unitBathrooms">Bathrooms</label>
-                      <input
+                      <Input
                         id="unitBathrooms"
                         type="number"
                         min="0"
@@ -1915,7 +1915,7 @@ export function MapStudio() {
                     </div>
                     <div className="form-field">
                       <label htmlFor="unitParkingSpaces">Parking spaces</label>
-                      <input
+                      <Input
                         id="unitParkingSpaces"
                         type="number"
                         min="0"
@@ -1934,7 +1934,7 @@ export function MapStudio() {
                   <>
                     <div className="form-field">
                       <label htmlFor="parkingType">Parking space type</label>
-                      <select
+                      <SelectControl
                         id="parkingType"
                         {...form.register("details.parkingType")}
                       >
@@ -1943,10 +1943,10 @@ export function MapStudio() {
                         <option value="EV">Electric vehicle</option>
                         <option value="VISITOR">Visitor</option>
                         <option value="OTHER">Other</option>
-                      </select>
+                      </SelectControl>
                     </div>
                     <label className="setting-check unit-form-check">
-                      <input
+                      <Input
                         type="checkbox"
                         {...form.register("details.parkingCovered")}
                       />
@@ -1959,7 +1959,7 @@ export function MapStudio() {
                     <>
                       <div className="form-field">
                         <label htmlFor="roadWidth">Road width</label>
-                        <input
+                        <Input
                           id="roadWidth"
                           type="number"
                           min="0.01"
@@ -1971,20 +1971,20 @@ export function MapStudio() {
                       </div>
                       <div className="form-field">
                         <label htmlFor="roadWidthUnit">Width unit</label>
-                        <select
+                        <SelectControl
                           id="roadWidthUnit"
                           {...form.register("details.roadWidthUnit")}
                         >
                           <option value="FT">Feet</option>
                           <option value="M">Metres</option>
-                        </select>
+                        </SelectControl>
                       </div>
                     </>
                   )}
               </div>
               <div className="form-field unit-form-description">
                 <label htmlFor="unitDescription">Description</label>
-                <textarea
+                <TextAreaControl
                   id="unitDescription"
                   rows={3}
                   maxLength={2000}
@@ -1998,7 +1998,7 @@ export function MapStudio() {
               </div>
               <div className="form-field unit-form-description">
                 <label htmlFor="unitFeatures">Features</label>
-                <textarea
+                <TextAreaControl
                   id="unitFeatures"
                   rows={2}
                   value={watchedFeatures.join(", ")}
@@ -2042,7 +2042,7 @@ export function MapStudio() {
                   <div className="unit-custom-attribute-row" key={field.id}>
                     <div className="form-field">
                       <label htmlFor={`custom-label-${index}`}>Label</label>
-                      <input
+                      <Input
                         id={`custom-label-${index}`}
                         {...form.register(
                           `details.customAttributes.${index}.label`,
@@ -2052,7 +2052,7 @@ export function MapStudio() {
                     </div>
                     <div className="form-field">
                       <label htmlFor={`custom-value-${index}`}>Value</label>
-                      <input
+                      <Input
                         id={`custom-value-${index}`}
                         {...form.register(
                           `details.customAttributes.${index}.value`,
@@ -2072,7 +2072,7 @@ export function MapStudio() {
                 ))}
               </div>
               <label className="setting-check unit-form-public-toggle">
-                <input
+                <Input
                   type="checkbox"
                   {...form.register("showDetailsOnPublicMap")}
                 />

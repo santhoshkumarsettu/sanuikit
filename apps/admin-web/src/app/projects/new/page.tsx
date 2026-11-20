@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { projectCreateSchema } from "@vstudio/validation";
 import { vstudioApi } from "@vstudio/api-client";
-import { Button } from "sanui";
+import { Button, Input, SelectControl, TextAreaControl } from "sanui";
 import { AppShell } from "../../../components/app-shell";
+import { ProjectContactFields } from "../../../components/project-contact-fields";
 
 type ProjectValues = z.infer<typeof projectCreateSchema>;
 const projectTypes = [
@@ -27,6 +29,7 @@ const projectTypes = [
 export default function NewProjectPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [logo, setLogo] = useState<File | null>();
   const form = useForm<ProjectValues>({
     resolver: zodResolver(projectCreateSchema),
     defaultValues: {
@@ -35,10 +38,12 @@ export default function NewProjectPage() {
       projectType: "PLOT_LAYOUT",
       description: "",
       location: "",
+      contactEmail: "",
+      contactPhone: "",
     },
   });
   const createProject = useMutation({
-    mutationFn: (values: ProjectValues) => vstudioApi.createProject(values),
+    mutationFn: (values: ProjectValues) => vstudioApi.createProject(values, logo ?? undefined),
     onSuccess: async (project) => {
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
       const returnToStudio =
@@ -85,7 +90,7 @@ export default function NewProjectPage() {
           >
             <div className="form-field">
               <label htmlFor="project-name">Project name</label>
-              <input
+              <Input
                 id="project-name"
                 placeholder="e.g. Prestige Estates Projects"
                 {...form.register("name", {
@@ -100,7 +105,7 @@ export default function NewProjectPage() {
             </div>
             <div className="form-field">
               <label htmlFor="project-slug">Public URL slug</label>
-              <input
+              <Input
                 id="project-slug"
                 placeholder="prestige-estates-projects"
                 {...form.register("slug")}
@@ -116,17 +121,17 @@ export default function NewProjectPage() {
             </div>
             <div className="form-field">
               <label htmlFor="project-type">Project type</label>
-              <select id="project-type" {...form.register("projectType")}>
+              <SelectControl id="project-type" {...form.register("projectType")}>
                 {projectTypes.map((type) => (
                   <option key={type} value={type}>
                     {type.replaceAll("_", " ")}
                   </option>
                 ))}
-              </select>
+              </SelectControl>
             </div>
             <div className="form-field">
               <label htmlFor="project-location">Location</label>
-              <input
+              <Input
                 id="project-location"
                 placeholder="City, state"
                 {...form.register("location")}
@@ -134,16 +139,24 @@ export default function NewProjectPage() {
             </div>
             <div className="form-field project-description-field">
               <label htmlFor="project-description">Description</label>
-              <textarea
+              <TextAreaControl
                 id="project-description"
                 placeholder="A short introduction for your team and customers"
                 {...form.register("description")}
               />
             </div>
+            <ProjectContactFields
+              email={form.register("contactEmail")}
+              phone={form.register("contactPhone")}
+              emailError={form.formState.errors.contactEmail?.message}
+              phoneError={form.formState.errors.contactPhone?.message}
+              logo={logo}
+              onLogoChange={setLogo}
+              disabled={createProject.isPending}
+            />
             {createProject.error && (
               <p className="form-error project-submit-error" role="alert">
-                {createProject.error.message}. Connect to the VStudio API and
-                try again.
+                {createProject.error.message}
               </p>
             )}
             <div className="form-actions">

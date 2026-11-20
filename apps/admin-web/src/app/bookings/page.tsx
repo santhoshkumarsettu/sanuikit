@@ -8,7 +8,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import type { BookingStatus } from "@vstudio/types";
 import { vstudioApi, type ApiBooking } from "@vstudio/api-client";
-import { Badge, Button, Modal } from "sanui";
+import { Badge, Button, Input, Modal, SelectControl, TextAreaControl } from "sanui";
 import { formatArea, formatCurrency, getUnitTypeLabel } from "@vstudio/utils";
 import { AppShell } from "../../components/app-shell";
 
@@ -254,7 +254,7 @@ export default function BookingsPage() {
         </div>
         <section className="surface-card bookings-card">
           <div className="inventory-toolbar">
-            <select
+            <SelectControl
               className="sanui-select filter-select bookings-project-select"
               aria-label="Choose project"
               value={projectId}
@@ -273,16 +273,16 @@ export default function BookingsPage() {
                   {item.name}
                 </option>
               ))}
-            </select>
+            </SelectControl>
             <div className="inventory-search">
-              <input
+              <Input
                 placeholder="Search by unit or customer"
                 aria-label="Search bookings"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <select
+            <SelectControl
               className="sanui-select filter-select"
               aria-label="Filter booking status"
               value={status}
@@ -296,7 +296,7 @@ export default function BookingsPage() {
                   {formatBookingStatus(item)}
                 </option>
               ))}
-            </select>
+            </SelectControl>
             <span className="result-count">{filtered.length} bookings</span>
           </div>
           {message && (
@@ -496,7 +496,7 @@ export default function BookingsPage() {
             </p>
             <div className="form-field">
               <label htmlFor="booking-unit">Available unit</label>
-              <select
+              <SelectControl
                 id="booking-unit"
                 {...form.register("unitId")}
                 disabled={unitsQuery.isLoading || availableUnits.length === 0}
@@ -517,7 +517,7 @@ export default function BookingsPage() {
                       : "Not priced"}
                   </option>
                 ))}
-              </select>
+              </SelectControl>
               {form.formState.errors.unitId && (
                 <small className="form-error">
                   {form.formState.errors.unitId.message}
@@ -531,7 +531,7 @@ export default function BookingsPage() {
             </div>
             <div className="form-field">
               <label htmlFor="booking-customer-name">Customer name</label>
-              <input
+              <Input
                 id="booking-customer-name"
                 autoComplete="name"
                 placeholder="Customer name"
@@ -546,7 +546,7 @@ export default function BookingsPage() {
             <div className="form-grid">
               <div className="form-field">
                 <label htmlFor="booking-customer-email">Email</label>
-                <input
+                <Input
                   id="booking-customer-email"
                   type="email"
                   autoComplete="email"
@@ -561,7 +561,7 @@ export default function BookingsPage() {
               </div>
               <div className="form-field">
                 <label htmlFor="booking-customer-phone">Phone</label>
-                <input
+                <Input
                   id="booking-customer-phone"
                   type="tel"
                   autoComplete="tel"
@@ -574,7 +574,7 @@ export default function BookingsPage() {
               <label htmlFor="booking-notes">
                 Notes <span className="field-hint">Optional</span>
               </label>
-              <textarea
+              <TextAreaControl
                 id="booking-notes"
                 rows={3}
                 placeholder="Add follow-up details"

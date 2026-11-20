@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError, vstudioApi } from "@vstudio/api-client";
-import { Badge, Button, Skeleton, Spinner } from "sanui";
+import { Badge, Button, Card, Skeleton, Spinner } from "sanui";
 import { demoProject, demoUnits, formatCurrency } from "@vstudio/utils";
 import { AppShell } from "../components/app-shell";
 import { usePermissions } from "../hooks/use-permissions";
@@ -76,7 +76,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <section className="overview-grid" aria-label="Portfolio metrics">
-          <article className="stat-card">
+          <Card as="article" className="stat-card stat-card--projects">
             <div className="stat-top">
               <span>Active projects</span>
               <span className="stat-glyph">⌂</span>
@@ -85,8 +85,8 @@ export default function DashboardPage() {
             <div className="stat-foot">
               <span className="trend-up">+2</span> from last month
             </div>
-          </article>
-          <article className="stat-card">
+          </Card>
+          <Card as="article" className="stat-card stat-card--units">
             <div className="stat-top">
               <span>Total units</span>
               <span className="stat-glyph">▤</span>
@@ -95,8 +95,8 @@ export default function DashboardPage() {
             <div className="stat-foot">
               <span className="trend-up">+86</span> added this quarter
             </div>
-          </article>
-          <article className="stat-card">
+          </Card>
+          <Card as="article" className="stat-card stat-card--available">
             <div className="stat-top">
               <span>Available inventory</span>
               <span className="stat-glyph">◉</span>
@@ -105,8 +105,8 @@ export default function DashboardPage() {
             <div className="stat-foot">
               {occupancy}% allocated across projects
             </div>
-          </article>
-          <article className="stat-card">
+          </Card>
+          <Card as="article" className="stat-card stat-card--bookings">
             <div className="stat-top">
               <span>Bookings this month</span>
               <span className="stat-glyph">▣</span>
@@ -115,11 +115,11 @@ export default function DashboardPage() {
             <div className="stat-foot">
               <span className="trend-up">+12.8%</span> vs. previous month
             </div>
-          </article>
+          </Card>
         </section>
         <div className="dashboard-main-grid">
           {canViewProjects && (
-            <section className="surface-card">
+            <Card as="section" className="surface-card surface-card--projects">
               <header className="surface-header">
                 <div>
                   <h2>Projects</h2>
@@ -132,7 +132,7 @@ export default function DashboardPage() {
               <div className="surface-body">
                 <Link className="project-row" href="/projects/green-valley">
                   <div className="project-name">
-                    <span className="project-thumb" />
+                    <span className="project-thumb" aria-hidden="true" />
                     <span>
                       <strong>{demoProject.name}</strong>
                       <small>
@@ -150,11 +150,8 @@ export default function DashboardPage() {
                 >
                   <div className="project-name">
                     <span
-                      className="project-thumb"
-                      style={{
-                        background:
-                          "linear-gradient(135deg,var(--sanui-color-primary-soft),var(--sanui-color-canvas))",
-                      }}
+                      className="project-thumb project-thumb--cyan"
+                      aria-hidden="true"
                     />
                     <span>
                       <strong>Sunrise Residences</strong>
@@ -168,11 +165,8 @@ export default function DashboardPage() {
                 <Link className="project-row" href="/projects/orbit-tech-park">
                   <div className="project-name">
                     <span
-                      className="project-thumb"
-                      style={{
-                        background:
-                          "linear-gradient(135deg,var(--sanui-color-surface-subtle),var(--sanui-color-primary-soft))",
-                      }}
+                      className="project-thumb project-thumb--green"
+                      aria-hidden="true"
                     />
                     <span>
                       <strong>Orbit Tech Park</strong>
@@ -186,11 +180,8 @@ export default function DashboardPage() {
                 <Link className="project-row" href="/projects/terrace-villas">
                   <div className="project-name">
                     <span
-                      className="project-thumb"
-                      style={{
-                        background:
-                          "linear-gradient(135deg,var(--sanui-color-canvas),var(--sanui-color-primary-soft))",
-                      }}
+                      className="project-thumb project-thumb--amber"
+                      aria-hidden="true"
                     />
                     <span>
                       <strong>Terrace Villas</strong>
@@ -202,10 +193,10 @@ export default function DashboardPage() {
                   <span>Oct 7</span>
                 </Link>
               </div>
-            </section>
+            </Card>
           )}
           {canViewActivity && (
-            <section className="surface-card">
+            <Card as="section" className="surface-card surface-card--activity">
               <header className="surface-header">
                 <div>
                   <h2>Recent activity</h2>
@@ -282,12 +273,12 @@ export default function DashboardPage() {
                   </p>
                 )}
               </div>
-            </section>
+            </Card>
           )}
         </div>
         <div className="dashboard-main-grid">
           {canViewInventory && (
-            <section className="surface-card">
+            <Card as="section" className="surface-card surface-card--inventory">
               <header className="surface-header">
                 <div>
                   <h2>Green Valley · Inventory snapshot</h2>
@@ -322,10 +313,10 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
-            </section>
+            </Card>
           )}
           {canViewReports && (
-            <section className="surface-card">
+            <Card as="section" className="surface-card surface-card--sales">
               <header className="surface-header">
                 <div>
                   <h2>Sales summary</h2>
@@ -351,7 +342,7 @@ export default function DashboardPage() {
                   <i style={{ height: "96%" }} />
                 </div>
               </div>
-            </section>
+            </Card>
           )}
         </div>
       </div>

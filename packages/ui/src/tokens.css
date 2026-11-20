@@ -27,6 +27,12 @@
   --sanui-color-primary-border: #cce1d0;
   --sanui-color-primary-fill: rgb(40 102 76 / 22%);
   --sanui-color-primary-focus: rgb(40 102 76 / 15%);
+  --sanui-color-primary-gradient: linear-gradient(135deg, var(--sanui-color-primary), var(--sanui-color-primary-hover));
+  --sanui-color-primary-hover-gradient: linear-gradient(135deg, var(--sanui-color-primary-hover), var(--sanui-color-primary-strong));
+  --sanui-color-primary-glow: 0 5px 16px var(--sanui-color-primary-focus);
+  --sanui-color-accent: var(--sanui-color-primary);
+  --sanui-color-accent-strong: var(--sanui-color-primary);
+  --sanui-color-accent-soft: var(--sanui-color-primary-soft);
 
   /* Shared feedback and inventory status palette */
   --sanui-color-success: #10b981;
@@ -39,6 +45,7 @@
   --sanui-color-info-strong: #1e40af;
   --sanui-color-info-soft: #e6f0fa;
   --sanui-color-danger: #ef4444;
+  --sanui-color-danger-contrast: #ffffff;
   --sanui-color-danger-strong: #991b1b;
   --sanui-color-danger-soft: #fde9e7;
   --sanui-color-blocked: #8b5cf6;
@@ -96,24 +103,31 @@
   --sanui-radius-sm: 6px;
   --sanui-radius-md: 10px;
   --sanui-radius-lg: 16px;
-}
 
-/* Blue is the optional custom brand family. */
-:root[data-theme-mode='custom'][data-theme-family='blue'] {
-  --sanui-color-primary: #2563eb;
-  --sanui-color-primary-hover: #1d4ed8;
-  --sanui-color-primary-strong: #1e3a8a;
-  --sanui-color-primary-contrast: #ffffff;
-  --sanui-color-primary-soft: #eff6ff;
-  --sanui-color-primary-muted: #dbeafe;
-  --sanui-color-primary-border: #bfdbfe;
-  --sanui-color-primary-fill: rgb(37 99 235 / 22%);
-  --sanui-color-primary-focus: rgb(37 99 235 / 18%);
+  /* Premium surface recipes stay tied to the active theme family and mode. */
+  --sanui-color-page-background: radial-gradient(ellipse at 8% 0%, color-mix(in srgb, var(--sanui-color-primary) 11%, transparent), transparent 38%), radial-gradient(ellipse at 96% 2%, color-mix(in srgb, var(--sanui-color-accent) 9%, transparent), transparent 32%), var(--sanui-color-canvas);
+  --sanui-color-card-surface: linear-gradient(135deg, color-mix(in srgb, var(--sanui-color-surface) 86%, var(--sanui-color-primary)), var(--sanui-color-surface) 58%, color-mix(in srgb, var(--sanui-color-surface) 94%, var(--sanui-color-accent)));
+  --sanui-color-card-surface-raised: linear-gradient(135deg, color-mix(in srgb, var(--sanui-color-surface) 80%, var(--sanui-color-primary)), var(--sanui-color-surface) 60%, color-mix(in srgb, var(--sanui-color-surface) 94%, var(--sanui-color-accent)));
+  --sanui-color-card-surface-inset: linear-gradient(135deg, color-mix(in srgb, var(--sanui-color-surface-muted) 82%, var(--sanui-color-primary)), color-mix(in srgb, var(--sanui-color-surface-muted) 92%, var(--sanui-color-accent)));
+  --sanui-color-card-header: linear-gradient(100deg, color-mix(in srgb, var(--sanui-color-primary) 12%, var(--sanui-color-surface)), color-mix(in srgb, var(--sanui-color-accent) 5%, var(--sanui-color-surface)) 78%);
+  --sanui-color-card-border: color-mix(in srgb, var(--sanui-color-border) 64%, var(--sanui-color-primary) 36%);
+  --sanui-color-card-border-hover: color-mix(in srgb, var(--sanui-color-border) 32%, var(--sanui-color-accent) 68%);
+  --sanui-color-card-highlight: rgb(255 255 255 / 68%);
+  --sanui-color-card-accent: color-mix(in srgb, var(--sanui-color-accent) 58%, transparent);
+  --sanui-color-navigation-surface: linear-gradient(180deg, var(--sanui-color-surface), color-mix(in srgb, var(--sanui-color-surface) 95%, var(--sanui-color-primary)));
+  --sanui-radius-card: 17px;
+  --sanui-radius-control: 9px;
+  --sanui-font-size-page-title: clamp(29px, 3.1vw, 38px);
+  --sanui-font-size-section-title: 17px;
+  --sanui-font-size-body: 14px;
+  --sanui-font-weight-display: 680;
+  --sanui-letter-spacing-display: -0.055em;
 }
 
 /* Explicit dark mode keeps each surface and control on the same neutral scale. */
 :root[data-theme-mode='dark'] {
   color-scheme: dark;
+  --sanui-color-card-highlight: rgb(255 255 255 / 7%);
   --sanui-color-text: #edf2f7;
   --sanui-color-text-secondary: #d1d9e2;
   --sanui-color-muted: #a8b3bf;
@@ -155,6 +169,7 @@
   --sanui-color-category-regular-fill: rgb(45 212 191 / 20%);
   --sanui-color-category-regular-ink: #5eead4;
   --sanui-color-danger-strong: #fca5a5;
+  --sanui-color-danger-contrast: #1f0b0b;
   --sanui-color-danger-soft: rgb(239 68 68 / 16%);
   --sanui-color-blocked-strong: #c4b5fd;
   --sanui-color-blocked-soft: rgb(139 92 246 / 18%);
@@ -170,6 +185,7 @@
 @media (prefers-color-scheme: dark) {
   :root[data-theme-mode='system'] {
     color-scheme: dark;
+    --sanui-color-card-highlight: rgb(255 255 255 / 7%);
     --sanui-color-text: #edf2f7;
     --sanui-color-text-secondary: #d1d9e2;
     --sanui-color-muted: #a8b3bf;
@@ -211,6 +227,7 @@
     --sanui-color-category-regular-fill: rgb(45 212 191 / 20%);
     --sanui-color-category-regular-ink: #5eead4;
     --sanui-color-danger-strong: #fca5a5;
+    --sanui-color-danger-contrast: #1f0b0b;
     --sanui-color-danger-soft: rgb(239 68 68 / 16%);
     --sanui-color-blocked-strong: #c4b5fd;
     --sanui-color-blocked-soft: rgb(139 92 246 / 18%);
@@ -220,5 +237,116 @@
     --sanui-color-shadow: rgb(0 0 0 / 28%);
     --sanui-color-shadow-strong: rgb(0 0 0 / 42%);
     --sanui-color-backdrop: rgb(0 0 0 / 62%);
+  }
+}
+
+/* Blue family follows the Krewbee reference: navy foundations, royal blue, and cyan accents. */
+:root[data-theme-family='blue'] {
+  --sanui-color-text: #07152f;
+  --sanui-color-text-secondary: #223454;
+  --sanui-color-muted: #61708a;
+  --sanui-color-subtle: #8593ad;
+  --sanui-color-faint: #aeb9cc;
+  --sanui-color-border: #d9e2f1;
+  --sanui-color-border-subtle: #e8eef8;
+  --sanui-color-border-strong: #becbe0;
+  --sanui-color-surface: #ffffff;
+  --sanui-color-surface-glass: rgb(255 255 255 / 94%);
+  --sanui-color-surface-muted: #f6f8fc;
+  --sanui-color-surface-subtle: #edf2fa;
+  --sanui-color-canvas: #f3f6fb;
+  --sanui-color-primary: #081a45;
+  --sanui-color-primary-hover: #112d6b;
+  --sanui-color-primary-strong: #061333;
+  --sanui-color-primary-contrast: #ffffff;
+  --sanui-color-primary-soft: #e8efff;
+  --sanui-color-primary-muted: #f0f4ff;
+  --sanui-color-primary-border: #c7d5f7;
+  --sanui-color-primary-fill: rgb(37 99 235 / 22%);
+  --sanui-color-primary-focus: rgb(15 185 204 / 24%);
+  --sanui-color-primary-gradient: linear-gradient(135deg, #102d7a, #06163f);
+  --sanui-color-primary-hover-gradient: linear-gradient(135deg, #17429e, #0a225d);
+  --sanui-color-primary-glow: 0 6px 18px rgb(12 41 106 / 18%);
+  --sanui-color-accent: #10bfd0;
+  --sanui-color-accent-strong: #087987;
+  --sanui-color-accent-soft: #e0fbfd;
+  --sanui-color-shadow-soft: rgb(11 35 82 / 6%);
+  --sanui-color-shadow: rgb(11 35 82 / 12%);
+  --sanui-color-shadow-strong: rgb(11 35 82 / 20%);
+}
+
+:root[data-theme-mode='dark'][data-theme-family='blue'] {
+  color-scheme: dark;
+  --sanui-color-card-highlight: rgb(255 255 255 / 8%);
+  --sanui-color-text: #f1f6ff;
+  --sanui-color-text-secondary: #d5e0f5;
+  --sanui-color-muted: #a6b7d2;
+  --sanui-color-subtle: #8295b5;
+  --sanui-color-faint: #667b9e;
+  --sanui-color-border: #20345e;
+  --sanui-color-border-subtle: #18294f;
+  --sanui-color-border-strong: #344a74;
+  --sanui-color-surface: #0b1737;
+  --sanui-color-surface-glass: rgb(8 19 48 / 94%);
+  --sanui-color-surface-muted: #101f45;
+  --sanui-color-surface-subtle: #172950;
+  --sanui-color-canvas: #050c22;
+  --sanui-color-primary: #3477f6;
+  --sanui-color-primary-hover: #5b91ff;
+  --sanui-color-primary-strong: #9dc0ff;
+  --sanui-color-primary-contrast: #ffffff;
+  --sanui-color-primary-soft: rgb(50 112 239 / 20%);
+  --sanui-color-primary-muted: rgb(50 112 239 / 12%);
+  --sanui-color-primary-border: rgb(104 151 255 / 34%);
+  --sanui-color-primary-fill: rgb(37 99 235 / 28%);
+  --sanui-color-primary-focus: rgb(34 211 238 / 30%);
+  --sanui-color-primary-gradient: linear-gradient(135deg, #2866e8, #087f9c);
+  --sanui-color-primary-hover-gradient: linear-gradient(135deg, #3f7cf4, #0998b5);
+  --sanui-color-primary-glow: 0 6px 20px rgb(0 195 220 / 26%);
+  --sanui-color-accent: #22d3ee;
+  --sanui-color-accent-strong: #a5f3fc;
+  --sanui-color-accent-soft: rgb(34 211 238 / 14%);
+  --sanui-color-shadow-soft: rgb(0 0 0 / 18%);
+  --sanui-color-shadow: rgb(0 0 0 / 30%);
+  --sanui-color-shadow-strong: rgb(0 0 0 / 46%);
+  --sanui-color-backdrop: rgb(2 8 24 / 72%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme-mode='system'][data-theme-family='blue'] {
+    color-scheme: dark;
+    --sanui-color-card-highlight: rgb(255 255 255 / 8%);
+    --sanui-color-text: #f1f6ff;
+    --sanui-color-text-secondary: #d5e0f5;
+    --sanui-color-muted: #a6b7d2;
+    --sanui-color-subtle: #8295b5;
+    --sanui-color-faint: #667b9e;
+    --sanui-color-border: #20345e;
+    --sanui-color-border-subtle: #18294f;
+    --sanui-color-border-strong: #344a74;
+    --sanui-color-surface: #0b1737;
+    --sanui-color-surface-glass: rgb(8 19 48 / 94%);
+    --sanui-color-surface-muted: #101f45;
+    --sanui-color-surface-subtle: #172950;
+    --sanui-color-canvas: #050c22;
+    --sanui-color-primary: #3477f6;
+    --sanui-color-primary-hover: #5b91ff;
+    --sanui-color-primary-strong: #9dc0ff;
+    --sanui-color-primary-contrast: #ffffff;
+    --sanui-color-primary-soft: rgb(50 112 239 / 20%);
+    --sanui-color-primary-muted: rgb(50 112 239 / 12%);
+    --sanui-color-primary-border: rgb(104 151 255 / 34%);
+    --sanui-color-primary-fill: rgb(37 99 235 / 28%);
+    --sanui-color-primary-focus: rgb(34 211 238 / 30%);
+    --sanui-color-primary-gradient: linear-gradient(135deg, #2866e8, #087f9c);
+    --sanui-color-primary-hover-gradient: linear-gradient(135deg, #3f7cf4, #0998b5);
+    --sanui-color-primary-glow: 0 6px 20px rgb(0 195 220 / 26%);
+    --sanui-color-accent: #22d3ee;
+    --sanui-color-accent-strong: #a5f3fc;
+    --sanui-color-accent-soft: rgb(34 211 238 / 14%);
+    --sanui-color-shadow-soft: rgb(0 0 0 / 18%);
+    --sanui-color-shadow: rgb(0 0 0 / 30%);
+    --sanui-color-shadow-strong: rgb(0 0 0 / 46%);
+    --sanui-color-backdrop: rgb(2 8 24 / 72%);
   }
 }

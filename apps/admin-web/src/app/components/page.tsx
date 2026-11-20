@@ -7,8 +7,9 @@ import {
   Grid, IconButton, LineClamp, Link, List, LivingDesign, Menu, MenuItem, Metric, Modal, Nudge,
   Panel, Popover, ProgressIndicator, ProgressTracker, Radio, Rating, Select, SideNavigation,
   Skeleton, Snackbar, Spinner, SpotIcon, StyledText, Switch, TabNavigation, Tag, Text, TextArea,
-  TextField, VisuallyHidden, Wizard, classNames, clamp, useControllableState, useMediaQuery, visuallyHiddenStyle,
+  TextField, ThemeSwitcher, VisuallyHidden, Wizard, classNames, clamp, useControllableState, useMediaQuery, visuallyHiddenStyle,
 } from 'sanui'
+import { useAppearance } from '../../components/appearance-provider'
 
 function Preview({ name, children }: { name: string; children: React.ReactNode }) {
   return <Card className="catalog-card"><div className="catalog-card__title"><span>{name}</span><code>{name}</code></div><div className="catalog-card__content">{children}</div></Card>
@@ -24,6 +25,7 @@ function CollapseDemo() {
 }
 
 function App() {
+  const { family, setFamily } = useAppearance()
   const [modalOpen, setModalOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [snackbarOpen, setSnackbarOpen] = useState(true)
@@ -41,7 +43,8 @@ function App() {
     <div className="playground">
       <header className="topbar">
         <a className="brand" href="#top" aria-label="SanUI home"><span className="brand-mark">S</span> sanui</a>
-        <span className="version">COMPONENT PLAYGROUND <i /> v0.1</span>
+        <span className="version">COMPONENT PLAYGROUND <i /> v0.2.0</span>
+        <ThemeSwitcher className="playground-theme-switcher" value={family} onChange={setFamily} />
       </header>
 
       <section className="hero" id="top">
@@ -115,7 +118,7 @@ function App() {
           <Preview name="Rating"><Rating value={rating} onChange={setRating} label="Rate this component" /></Preview>
           <Preview name="Spinner"><div className="preview-row"><Spinner label="Loading data" size="sm" /><Spinner label="Loading content" /><Spinner label="Loading page" size="lg" /></div></Preview>
           <Preview name="Skeleton"><div className="preview-stack"><Skeleton width="75%" /><Skeleton variant="rectangular" height={42} /><Skeleton variant="circular" width={36} height={36} /></div></Preview>
-          <Preview name="Metric"><div className="preview-row"><Metric label="Components" value="49" change="+6 this week" /></div></Preview>
+          <Preview name="Metric"><div className="preview-row"><Metric label="Components" value="53" change="+4 in v0.2.0" /></div></Preview>
         </Section>
 
         <Section id="overlays" number="06" title="Overlays & contextual content">

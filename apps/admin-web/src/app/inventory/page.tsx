@@ -12,7 +12,7 @@ import {
   type UnitPurpose,
   type UnitStatus,
 } from "@vstudio/types";
-import { Badge, Button } from "sanui";
+import { Badge, Button, Input, SelectControl } from "sanui";
 import { formatArea, formatCurrency, getUnitTypeLabel } from "@vstudio/utils";
 import { AppShell } from "../../components/app-shell";
 import { usePermissions } from "../../hooks/use-permissions";
@@ -221,7 +221,7 @@ export default function InventoryPage() {
             {canEditUnit && (
               <label className="sanui-button sanui-button--secondary sanui-button--md">
                 ↑ Import CSV
-                <input
+                <Input
                   type="file"
                   accept=".csv,text/csv"
                   hidden
@@ -255,7 +255,7 @@ export default function InventoryPage() {
         </div>
         <section className="surface-card inventory-card">
           <div className="inventory-toolbar">
-            <select
+            <SelectControl
               className="sanui-select filter-select"
               aria-label="Choose project"
               value={selectedProjectId}
@@ -274,16 +274,16 @@ export default function InventoryPage() {
                   {project.name}
                 </option>
               ))}
-            </select>
+            </SelectControl>
             <div className="inventory-search">
-              <input
+              <Input
                 aria-label="Search unit number"
                 placeholder="Search by unit number…"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <select
+            <SelectControl
               className="sanui-select filter-select"
               aria-label="Filter by status"
               value={status}
@@ -302,8 +302,8 @@ export default function InventoryPage() {
                   {value.replaceAll("_", " ")}
                 </option>
               ))}
-            </select>
-            <select
+            </SelectControl>
+            <SelectControl
               className="sanui-select filter-select"
               aria-label="Filter by zone category"
               value={category}
@@ -321,8 +321,8 @@ export default function InventoryPage() {
                     {UNIT_CATEGORY_PRESENTATION[value].label}
                   </option>
                 ))}
-            </select>
-            <select
+            </SelectControl>
+            <SelectControl
               className="sanui-select filter-select"
               aria-label="Filter by inventory purpose"
               value={purpose}
@@ -333,8 +333,8 @@ export default function InventoryPage() {
               <option value="ALL">All inventory</option>
               <option value="SALE">For sale</option>
               <option value="AMENITY">Amenities · not for sale</option>
-            </select>
-            <select
+            </SelectControl>
+            <SelectControl
               className="sanui-select filter-select"
               aria-label="Filter by unit type"
               value={unitType}
@@ -346,7 +346,7 @@ export default function InventoryPage() {
                   {value}
                 </option>
               ))}
-            </select>
+            </SelectControl>
             <span className="result-count">{filtered.length} units</span>
           </div>
           {message && (
@@ -406,7 +406,7 @@ export default function InventoryPage() {
               {canUpdateStatus && (
                 <>
                   <label htmlFor="bulk-status">Change status</label>
-                  <select
+                  <SelectControl
                     id="bulk-status"
                     className="sanui-select filter-select"
                     defaultValue=""
@@ -434,13 +434,13 @@ export default function InventoryPage() {
                         {value.replaceAll("_", " ")}
                       </option>
                     ))}
-                  </select>
+                  </SelectControl>
                 </>
               )}
               {canEditUnit && (
                 <>
                   <label htmlFor="bulk-category">Assign category</label>
-                  <select
+                  <SelectControl
                     id="bulk-category"
                     className="sanui-select filter-select bulk-category-select"
                     value={bulkCategorySelection}
@@ -465,7 +465,7 @@ export default function InventoryPage() {
                         </option>
                       ),
                     )}
-                  </select>
+                  </SelectControl>
                 </>
               )}
               <Button
@@ -509,7 +509,7 @@ export default function InventoryPage() {
                   <thead>
                     <tr>
                       {canManageSelection && <th className="checkbox-cell">
-                        <input
+                        <Input
                           aria-label="Select all visible units"
                           type="checkbox"
                           disabled={selectableFiltered.length === 0}
@@ -541,7 +541,7 @@ export default function InventoryPage() {
                     {filtered.map((unit) => (
                       <tr key={unit.id}>
                         {canManageSelection && <td>
-                          <input
+                          <Input
                             aria-label={`Select ${unit.unitNumber}`}
                             type="checkbox"
                             disabled={unit.purpose === "AMENITY"}
@@ -613,7 +613,7 @@ export default function InventoryPage() {
                           ) : (
                             <div className="inventory-status-cell">
                               <StatusBadge status={unit.status} />
-                              <select
+                              <SelectControl
                                 className="sanui-select filter-select status-select"
                                 aria-label={`Change ${unit.unitNumber} status`}
                                 value={unit.status}
@@ -637,7 +637,7 @@ export default function InventoryPage() {
                                       {value.replaceAll("_", " ")}
                                     </option>
                                   ))}
-                              </select>
+                              </SelectControl>
                             </div>
                           )}
                         </td>

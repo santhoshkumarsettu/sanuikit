@@ -35,6 +35,24 @@ export type PublicProjectResponse = {
   }>;
   units: PublicInventoryUnit[];
 };
+type ProjectDetailsInput = {
+  name: string;
+  slug: string;
+  projectType: string;
+  description?: string;
+  location?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+};
+
+function projectRequestBody(details: Partial<ProjectDetailsInput>, logo?: File): string | FormData {
+  if (!logo) return JSON.stringify(details);
+  const body = new FormData();
+  body.set("details", JSON.stringify(details));
+  body.set("logo", logo);
+  return body;
+}
+
 export type CreateUnitInput = Omit<
   InventoryUnit,
   | "id"
@@ -177,7 +195,7 @@ export class VStudioApiClient {
   ) {}
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const headers = new Headers(init?.headers);
-    if (init?.body !== undefined && !headers.has("content-type"))
+    if (init?.body !== undefined && !(init.body instanceof FormData) && !headers.has("content-type"))
       headers.set("content-type", "application/json");
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...init,
@@ -304,32 +322,23 @@ export class VStudioApiClient {
       PropertyProject & { layouts: ApiLayout[]; _count?: { units: number } }
     >(`/projects/${encodeURIComponent(slug)}`);
   }
-  createProject(input: {
-    name: string;
-    slug: string;
-    projectType: string;
-    description?: string;
-    location?: string;
-  }) {
+  createProject(input: ProjectDetailsInput, logo?: File) {
     return this.request<PropertyProject>("/projects", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: projectRequestBody(input, logo),
     });
   }
   updateProject(
     projectId: string,
-    input: {
-      name?: string;
-      slug?: string;
-      projectType?: string;
-      description?: string;
-      location?: string;
+    input: Partial<ProjectDetailsInput> & {
       status?: "DRAFT" | "ACTIVE";
+      removeLogo?: boolean;
     },
+    logo?: File,
   ) {
     return this.request<PropertyProject>(
       `/projects/${encodeURIComponent(projectId)}`,
-      { method: "PATCH", body: JSON.stringify(input) },
+      { method: "PATCH", body: projectRequestBody(input, logo) },
     );
   }
   archiveProject(projectId: string) {
@@ -352,7 +361,7 @@ export class VStudioApiClient {
   }
   updatePublicSettings(
     projectId: string,
-    input: { enabled: boolean; config: PublicMapConfig },
+    input: { enabled?: boolean; config: PublicMapConfig },
   ) {
     return this.request<{ enabled: boolean; publicUrl: string | null }>(
       `/projects/${encodeURIComponent(projectId)}/public-settings`,
